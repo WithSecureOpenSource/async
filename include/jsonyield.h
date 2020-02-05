@@ -37,6 +37,27 @@ void jsonyield_unregister_callback(jsonyield_t *framer);
 
 #ifdef __cplusplus
 }
+
+#include <functional>
+#include <memory>
+
+namespace fsecure {
+namespace async {
+
+// std::unique_ptr for jsonyield_t with custom deleter.
+using JsonyieldPtr =
+    std::unique_ptr<jsonyield_t, std::function<void(jsonyield_t *)>>;
+
+// Create JsonyieldPtr that takes ownership of the provided jsonyield_t. Pass
+// nullptr to create an instance which doesn't contain any jsonyield_t object.
+inline JsonyieldPtr make_jsonyield_ptr(jsonyield_t *framer)
+{
+    return { framer, jsonyield_close };
+}
+
+} // namespace async
+} // namespace fsecure
+
 #endif
 
 #endif
