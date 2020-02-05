@@ -71,4 +71,24 @@ int fsadns_check_name(fsadns_query_t *query,
 
 #ifdef __cplusplus
 }
+
+#include <functional>
+#include <memory>
+
+namespace fsecure {
+namespace async {
+
+// std::unique_ptr for fsadns_t with custom deleter.
+using FsadnsPtr = std::unique_ptr<fsadns_t, std::function<void(fsadns_t *)>>;
+
+// Create FsadnsPtr that takes ownership of the provided fsadns_t. Pass
+// nullptr to create an instance which doesn't contain any fsadns_t object.
+inline FsadnsPtr make_fsadns_ptr(fsadns_t *adns)
+{
+    return { adns, fsadns_destroy_resolver };
+}
+
+} // namespace async
+} // namespace fsecure
+
 #endif
