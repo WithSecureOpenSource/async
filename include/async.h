@@ -254,13 +254,31 @@ int async_unregister(async_t *async, int fd);
 #ifdef __cplusplus
 }
 
-#if __cplusplus >= 201703L
 #include <functional>
+#include <memory>
+
+#if __cplusplus >= 201703L
 #include <variant>
 #endif
 
 namespace fsecure {
 namespace async {
+
+// std::unique_ptr for async_t with custom deleter.
+using AsyncPtr = std::unique_ptr<async_t, std::function<void(async_t *)>>;
+
+// Create AsyncPtr that takes ownership of the provided async_t. Pass nullptr to
+// create an instance which doesn't contain any async_t object.
+inline AsyncPtr make_async_ptr(async_t *async)
+{
+    return { async, destroy_async };
+}
+
+// Create AsyncPtr which owns a newly created async_t object.
+inline AsyncPtr make_async_ptr()
+{
+    return { make_async(), destroy_async };
+}
 
 /*
  * This object provides an indirection layer for objects that use
