@@ -1,0 +1,69 @@
+Import('env')
+
+if env['ARCH'] in [ 'linux32', 'linux64' ]:
+    extralib = [ 'rt' ]
+else:
+    extralib = [ 'iconv' ]
+
+env['CCFLAGS'] += ' -O0'
+
+env['CPPPATH'] = [
+    '../components/async/include'
+]
+
+env['LIBPATH'] = [
+    '../src',
+]
+
+env['LIBS'] = [
+    'async',
+    extralib
+]
+
+env.ParseConfig(env['CONFIG_PARSER'])
+
+env.Substfile('fstracecheck.in',
+              '#fstracecheck.in',
+              SUBST_DICT = {
+                  '@CC@': '$CC',
+                  '@CONFIG_PARSER@': '$CONFIG_PARSER',
+                  '@FSTRACECHECK@': '$FSTRACECHECK',
+              }
+)
+env.Command('fstracecheck',
+            'fstracecheck.in',
+            [
+                Copy('$TARGET', '$SOURCE'),
+                Chmod('$TARGET', 0755),
+            ]
+)
+
+env.Program('asynctest',
+            [ 'asynctest.c',
+              'asynctest-timer.c',
+              'asynctest-poll.c',
+              'asynctest-old-school.c',
+              'asynctest-zerostream.c',
+              'asynctest-nicestream.c',
+              'asynctest-emptystream.c',
+              'asynctest-drystream.c',
+              'asynctest-blockingstream.c',
+              'asynctest-stringstream.c',
+              'asynctest-blobstream.c',
+              'asynctest-chunkdecoder.c',
+              'asynctest-chunkencoder.c',
+              'asynctest-queuestream.c',
+              'asynctest-framers.c',
+              'asynctest-json.c',
+              'asynctest-multipart.c',
+              'asynctest-concatstream.c',
+              'asynctest-probestream.c',
+              'asynctest-tcp.c',
+              'asynctest-pacerstream.c',
+              'asynctest-clobberstream.c',
+              'asynctest-pausestream.c',
+              'asynctest-base64encoder.c',
+              'asynctest-iconvstream.c' ])
+
+env.Program('fsadns_test',
+            [ 'fsadns_test.c' ])

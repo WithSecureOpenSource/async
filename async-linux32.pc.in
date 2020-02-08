@@ -1,0 +1,8 @@
+Name: async
+Description:
+Version: 1.0
+Requires:
+Requires.private: fsdyn, encjson, fstrace, unixkit
+Cflags: -I@prefix@/include
+Libs: -L@prefix@/lib -lasync
+Libs.private: -lrt

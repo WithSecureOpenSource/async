@@ -1,0 +1,64 @@
+Import('env')
+
+import os
+
+include = env.Install(
+    'include/async',
+    [
+        '#include/action_1.h',
+        '#include/async.h',
+        '#include/base64decoder.h',
+        '#include/base64encoder.h',
+        '#include/blobstream.h',
+        '#include/blockingstream.h',
+        '#include/bytestream_1.h',
+        '#include/bytestream_2.h',
+        '#include/chunkdecoder.h',
+        '#include/chunkencoder.h',
+        '#include/chunkframer.h',
+        '#include/clobberstream.h',
+        '#include/concatstream.h',
+        '#include/drystream.h',
+        '#include/emptystream.h',
+        '#include/errorstream.h',
+        '#include/farewellstream.h',
+        '#include/fsadns.h',
+        '#include/iconvstream.h',
+        '#include/json_connection.h',
+        '#include/jsondecoder.h',
+        '#include/jsonencoder.h',
+        '#include/jsonserver.h',
+        '#include/jsonyield.h',
+        '#include/multipartdecoder.h',
+        '#include/multipartdeserializer.h',
+        '#include/naivedecoder.h',
+        '#include/naiveencoder.h',
+        '#include/naiveframer.h',
+        '#include/nicestream.h',
+        '#include/notification.h',
+        '#include/pacer.h',
+        '#include/pacerstream.h',
+        '#include/pausestream.h',
+        '#include/pipestream.h',
+        '#include/probestream.h',
+        '#include/queuestream.h',
+        '#include/reservoir.h',
+        '#include/stringstream.h',
+        '#include/substream.h',
+        '#include/switchstream.h',
+        '#include/tcp_client.h',
+        '#include/tcp_connection.h',
+        '#include/tricklestream.h',
+        '#include/yield_1.h',
+        '#include/zerostream.h',
+    ],
+)
+lib = env.Install('lib', ['../../src/libasync.a'])
+
+env.Alias(
+    'install',
+    env.Install(os.path.join(env['PREFIX'], 'include/async'), include),
+)
+env.Alias('install', env.Install(os.path.join(env['PREFIX'], 'lib'), lib))
+
+env['CONFIG_BUILDER'](env)

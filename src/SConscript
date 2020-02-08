@@ -1,0 +1,62 @@
+Import('env')
+import os
+
+env.Command('async_version.c', [],
+            """echo 'const char *async_version_tag = \
+    "F-S_v:: async 1.0.%s";' >$TARGET""" % os.getenv("BUILD_NUMBER", "9999"))
+
+env['CCFLAGS'] += ' -fPIC'      # make objects usable for shared libs
+
+env['CPPPATH'] = [
+    '#include',
+]
+
+env.ParseConfig(env['CONFIG_PARSER'])
+
+env.StaticLibrary('async',
+                  [ 'emptystream.c',
+                    'zerostream.c',
+                    'drystream.c',
+                    'errorstream.c',
+                    'blobstream.c',
+                    'base64decoder.c',
+                    'base64encoder.c',
+                    'blockingstream.c',
+                    'chunkframer.c',
+                    'chunkdecoder.c',
+                    'chunkencoder.c',
+                    'clobberstream.c',
+                    'concatstream.c',
+                    'deserializer.c',
+                    'farewellstream.c',
+                    'fsadns.c',
+                    'iconvstream.c',
+                    'json_connection.c',
+                    'jsondecoder.c',
+                    'jsonencoder.c',
+                    'jsonserver.c',
+                    'jsonyield.c',
+                    'multipartdecoder.c',
+                    'multipartdeserializer.c',
+                    'naiveframer.c',
+                    'naivedecoder.c',
+                    'naiveencoder.c',
+                    'nicestream.c',
+                    'pacerstream.c',
+                    'pausestream.c',
+                    'pipestream.c',
+                    'probestream.c',
+                    'queuestream.c',
+                    'reservoir.c',
+                    'stringstream.c',
+                    'substream.c',
+                    'switchstream.c',
+                    'tricklestream.c',
+                    'tcp_client.c',
+                    'tcp_connection.c',
+                    'pacer.c',
+                    'yield_1.c',
+                    'bytestream_1.c',
+                    'notification.c',
+                    'async.c',
+                    'async_version.c' ])
