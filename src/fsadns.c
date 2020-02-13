@@ -568,7 +568,7 @@ void fsadns_destroy_resolver(fsadns_t *dns)
     FSTRACE(FSADNS_DESTROY, dns->uid);
     assert(dns->async != NULL);
     while (!list_empty(dns->queries))
-        destroy_query((fsadns_query_t *) list_pop_first(dns->queries));
+        destroy_query((fsadns_query_t *) list_get_first(dns->queries));
     destroy_list(dns->queries);
     destroy_hash_table(dns->query_map);
     kill(dns->child, SIGTERM);
