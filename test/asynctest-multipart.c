@@ -2,6 +2,7 @@
 
 #include <async/multipartdeserializer.h>
 #include <async/queuestream.h>
+#include <async/tricklestream.h>
 #include <fsdyn/bytearray.h>
 #include <fsdyn/fsalloc.h>
 
@@ -129,9 +130,13 @@ VERDICT test_multipart_single(test_data_t *test_data)
     queuestream_t *qstr = make_queuestream(async);
     queuestream_enqueue_bytes(qstr, test_data->input, strlen(test_data->input));
     queuestream_terminate(qstr);
+    tricklestream_t *trickle =
+        open_tricklestream(async,
+                           queuestream_as_bytestream_1(qstr),
+                           0.01);
     multipartdeserializer_t *des =
         open_multipartdeserializer(async,
-                                   queuestream_as_bytestream_1(qstr),
+                                   tricklestream_as_bytestream_1(trickle),
                                    test_data->boundary);
     tester_t tester = {
         .async = async,
