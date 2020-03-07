@@ -30,6 +30,7 @@ typedef enum {
 struct multipartdecoder {
     async_t *async;
     uint64_t uid;
+    int pending_errno;
     bytestream_1 source;
     action_1 callback;
     multipartdecoder_state_t state;
@@ -52,6 +53,7 @@ multipartdecoder_t *multipart_decode(async_t *async,
     multipartdecoder_t *decoder = fsalloc(sizeof *decoder);
     decoder->async = async;
     decoder->uid = fstrace_get_unique_id();
+    decoder->pending_errno = 0;
     FSTRACE(ASYNC_MULTIPARTDECODER_CREATE,
             decoder->uid,
             decoder,
@@ -315,6 +317,12 @@ static ssize_t do_read(multipartdecoder_t *decoder, void *buf, size_t size)
             break;
     }
 
+    if (decoder->pending_errno) {
+        errno = decoder->pending_errno;
+        decoder->pending_errno = 0;
+        return -1;
+    }
+
     size_t cursor = 0;
     char *ptr = buf;
     while (cursor < size) {
@@ -322,8 +330,13 @@ static ssize_t do_read(multipartdecoder_t *decoder, void *buf, size_t size)
             ssize_t count = bytestream_1_read(decoder->source,
                                               decoder->buffer,
                                               sizeof decoder->buffer);
-            if (count < 0)
-                return -1;
+            if (count < 0) {
+                if (!cursor)
+                    return -1;
+                if (errno != EAGAIN)
+                    decoder->pending_errno = errno;
+                break;
+            }
             if (!count) {
                 errno = EPROTO;
                 return -1;
