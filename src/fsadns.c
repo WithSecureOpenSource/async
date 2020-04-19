@@ -496,7 +496,6 @@ fsadns_t *fsadns_make_resolver(async_t *async, unsigned max_parallel,
         return dns;
     }
     /* child */
-    signal(SIGTERM, SIG_DFL);
     action_1_perf(post_fork_cb);
     serve(fd[1], dns);
     FSTRACE(FSADNS_CHILD_EXIT, dns->uid);
