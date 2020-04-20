@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include <assert.h>
+#include <regex.h>
 #include <sys/time.h>
 #include <fsdyn/fsalloc.h>
 #include <fstrace.h>
@@ -110,56 +111,88 @@ static void verify(const char *name, VERDICT (*testcase)(void))
     tlog("End %s", name);
 }
 
-#define VERIFY(tc) verify(#tc, tc)
-
 static int enable_all(void *data, const char *id)
 {
     return 1;
 }
 
+static void bad_usage()
+{
+    fprintf(stderr, "Usage: asynctest [ --test-include PATTERN ] [ --trace ]\n");
+    exit(EXIT_FAILURE);
+}
+
+typedef struct {
+    const char *name;
+    VERDICT (*testcase)(void);
+} testcase_t;
+
+#define TESTCASE(tc) { #tc, tc }
+
+static const testcase_t testcases[] = {
+    TESTCASE(test_async_timer_start),
+    TESTCASE(test_async_timer_cancel),
+    TESTCASE(test_async_register),
+    TESTCASE(test_async_loop_protected),
+    TESTCASE(test_async_poll),
+    TESTCASE(test_async_old_school),
+    TESTCASE(test_zerostream),
+    TESTCASE(test_nicestream),
+    TESTCASE(test_emptystream),
+    TESTCASE(test_drystream),
+    TESTCASE(test_blockingstream),
+    TESTCASE(test_stringstream),
+    TESTCASE(test_blobstream),
+    TESTCASE(test_chunkdecoder),
+    TESTCASE(test_chunkencoder),
+    TESTCASE(test_queuestream),
+    TESTCASE(test_relaxed_queuestream),
+    TESTCASE(test_chunkframer),
+    TESTCASE(test_naiveframer),
+    TESTCASE(test_json),
+    TESTCASE(test_multipart),
+    TESTCASE(test_concatstream),
+    TESTCASE(test_tcp_connection),
+    TESTCASE(test_pacerstream),
+    TESTCASE(test_clobberstream),
+    TESTCASE(test_pausestream),
+    TESTCASE(test_probestream),
+    TESTCASE(test_base64encoder),
+    TESTCASE(test_iconvstream),
+};
+
 int main(int argc, const char *const *argv)
 {
-    if (argc == 2) {
-        if (!strcmp(argv[1], "--trace")) {
-            fstrace_t *trace = fstrace_direct(stderr);
-            fstrace_declare_globals(trace);
-            fstrace_select(trace, enable_all, NULL);
+    fstrace_t *trace = fstrace_direct(stderr);
+    fstrace_declare_globals(trace);
 
-        } else {
-            fprintf(stderr, "Usage: asynctest [ --trace ]\n");
-            return EXIT_FAILURE;
+    const char *include = ".";
+    int i = 1;
+    while (i < argc && argv[i][0] == '-') {
+        if (!strcmp(argv[i], "--test-include")) {
+            if (++i >= argc)
+                bad_usage();
+            include = argv[i++];
+            continue;
         }
+        if (!strcmp(argv[i], "--trace")) {
+            fstrace_select(trace, enable_all, NULL);
+            i++;
+            continue;
+        }
+        bad_usage();
     }
+
+    regex_t include_re;
+    int status = regcomp(&include_re, include, REG_EXTENDED | REG_NOSUB);
+    if (status)
+        bad_usage();
     reallocator = fs_get_reallocator();
     fs_set_reallocator(test_realloc);
-    VERIFY(test_async_timer_start);
-    VERIFY(test_async_timer_cancel);
-    VERIFY(test_async_register);
-    VERIFY(test_async_loop_protected);
-    VERIFY(test_async_poll);
-    VERIFY(test_async_old_school);
-    VERIFY(test_zerostream);
-    VERIFY(test_nicestream);
-    VERIFY(test_emptystream);
-    VERIFY(test_drystream);
-    VERIFY(test_blockingstream);
-    VERIFY(test_stringstream);
-    VERIFY(test_blobstream);
-    VERIFY(test_chunkdecoder);
-    VERIFY(test_chunkencoder);
-    VERIFY(test_queuestream);
-    VERIFY(test_relaxed_queuestream);
-    VERIFY(test_chunkframer);
-    VERIFY(test_naiveframer);
-    VERIFY(test_json);
-    VERIFY(test_multipart);
-    VERIFY(test_concatstream);
-    VERIFY(test_tcp_connection);
-    VERIFY(test_pacerstream);
-    VERIFY(test_clobberstream);
-    VERIFY(test_pausestream);
-    VERIFY(test_probestream);
-    VERIFY(test_base64encoder);
-    VERIFY(test_iconvstream);
+    for (i = 0; i < sizeof(testcases) / sizeof(testcases[0]); i++)
+        if (!regexec(&include_re, testcases[i].name, 0, NULL, 0))
+            verify(testcases[i].name, testcases[i].testcase);
+    fstrace_close(trace);
+    regfree(&include_re);
     return failures;
 }
