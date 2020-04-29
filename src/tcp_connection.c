@@ -511,7 +511,8 @@ static ssize_t transmit(tcp_conn_t *conn, size_t remaining)
             cp->cmsg_type != CMSG_ASYNC_MAGIC_MARK)
             ancillary_size += CMSG_ALIGN(cp->cmsg_len);
     }
-    uint8_t ancillary[ancillary_size], *ap = ancillary;
+    uint8_t *ancillary = fsalloc(ancillary_size);
+    uint8_t *ap = ancillary;
     for (ep = list_get_first(conn->output.ancillary_data);
          ep;
          ep = list_next(ep)) {
@@ -549,6 +550,7 @@ static ssize_t transmit(tcp_conn_t *conn, size_t remaining)
             fsfree(cp);
         }
     }
+    fsfree(ancillary);
     return count;
 }
 
