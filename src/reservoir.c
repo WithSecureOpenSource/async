@@ -34,6 +34,7 @@ reservoir_t *open_reservoir(async_t *async, size_t capacity,
     reservoir->eof_reached = false;
     reservoir->stream = stream;
     reservoir->storage = make_queuestream(async);
+    reservoir->callback = NULL_ACTION_1;
     return reservoir;
 }
 
