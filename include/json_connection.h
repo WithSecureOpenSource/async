@@ -24,6 +24,27 @@ json_thing_t *json_conn_receive(json_conn_t *conn);
 
 #ifdef __cplusplus
 }
+
+#include <functional>
+#include <memory>
+
+namespace fsecure {
+namespace async {
+
+// std::unique_ptr for json_conn_t with custom deleter.
+using JsonConnPtr =
+    std::unique_ptr<json_conn_t, std::function<void(json_conn_t *)>>;
+
+// Create JsonConnPtr that takes ownership of the provided json_conn_t. Pass
+// nullptr to create an instance which doesn't contain any json_conn_t object.
+inline JsonConnPtr make_json_conn_ptr(json_conn_t *conn)
+{
+    return { conn, json_conn_close };
+}
+
+} // namespace async
+} // namespace fsecure
+
 #endif
 
 #endif
