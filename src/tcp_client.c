@@ -180,6 +180,28 @@ static void set_client_state(tcp_client_t *client, tcp_client_state_t state)
     client->state = state;
 }
 
+FSTRACE_DECL(ASYNC_TCP_CLIENT_NOTIFY, "UID=%64u");
+
+static void notify_choice(tcp_client_t *client)
+{
+    FSTRACE(ASYNC_TCP_CLIENT_NOTIFY, client->uid);
+    while (!list_empty(client->candidates)) {
+        conn_candidate_t *other =
+            (conn_candidate_t *) list_pop_first(client->candidates);
+        /* Note: both tcp_set_output_stream() and tcp_close() will cause
+         * candidate_close() to be called back. */
+        if (other->conn == client->chosen)
+            tcp_set_output_stream(other->conn, drystream);
+        else {
+            tcp_close_input_stream(other->conn);
+            tcp_close(other->conn);
+        }
+        async_wound(client->async, other);
+    }
+    destroy_list(client->candidates);
+    async_execute(client->async, client->choice_callback);
+}
+
 FSTRACE_DECL(ASYNC_TCP_CLIENT_SPURIOUS_CHOICE, "UID=%64u CANDIDATE=%64u");
 FSTRACE_DECL(ASYNC_TCP_CLIENT_CHOOSE, "UID=%64u CANDIDATE=%64u");
 
@@ -193,22 +215,9 @@ static void make_choice(conn_candidate_t *candidate)
     }
     FSTRACE(ASYNC_TCP_CLIENT_CHOOSE, client->uid, candidate->uid);
     client->chosen = candidate->conn;
-    while (!list_empty(client->candidates)) {
-        conn_candidate_t *other =
-            (conn_candidate_t *) list_pop_first(client->candidates);
-        /* Note: both tcp_set_output_stream() and tcp_close() will cause
-         * candidate_close() to be called back. */
-        if (other == candidate)
-            tcp_set_output_stream(other->conn, drystream);
-        else {
-            tcp_close_input_stream(other->conn);
-            tcp_close(other->conn);
-        }
-        async_wound(client->async, other);
-    }
-    destroy_list(client->candidates);
     set_client_state(client, TCP_CLIENT_CONNECTED);
-    async_execute(client->async, client->choice_callback);
+    action_1 notify_cb = { client, (act_1) notify_choice };
+    async_execute(client->async, notify_cb);
 }
 
 static ssize_t candidate_read(void *obj, void *buf, size_t count)
