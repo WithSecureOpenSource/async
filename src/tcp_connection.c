@@ -709,7 +709,7 @@ void set_output_stream(tcp_conn_t *conn, bytestream_1 output_stream)
 {
     if (inactive(conn))
         return;
-    bytestream_1_close_relaxed(conn->async, conn->output_stream);
+    bytestream_1_close(conn->output_stream);
     conn->output_stream = output_stream;
     bytestream_1_register_callback(output_stream,
                                    (action_1) { conn, (act_1) user_probe });

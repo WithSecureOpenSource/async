@@ -40,17 +40,18 @@ tcp_conn_t *tcp_adopt_connection(async_t *async, int connfd);
 
 void tcp_get_statistics_1(tcp_conn_t *conn, tcp_statistics_1 *stats);
 
-/* Close the connection and release the resources associated with it. If
- * the output stream is still open, a close is scheduled. If the input
- * stream is still open, it is shut down, but the user is responsible
- * for closing it eventually. */
+/* Close the connection and release the resources associated with it.
+ * If the output stream is still open, an immediate close is
+ * performed. If the input stream is still open, it is shut down, but
+ * the user is responsible for closing it eventually. */
 void tcp_close(tcp_conn_t *conn);
 
 /* Close one or both directions of the communication. The values for
  * 'how' are a bitwise "or" of SHUT_RD and SHUT_WR (see shutdown(2)).
  *
- * If SHUT_WR is specified and the output stream is still open, a close
- * is scheduled as though an EOF had been read from the output stream.
+ * If SHUT_WR is specified and the output stream is still open, an
+ * immediate close is performed as though an EOF had been read from
+ * the output stream.
  *
  * If SHUT_RD is specified and the input stream is still open, an
  * immediate close is performed. Note that if the input stream is bound
