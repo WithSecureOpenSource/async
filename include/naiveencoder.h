@@ -11,7 +11,7 @@ extern "C" {
 typedef struct naiveencoder naiveencoder_t;
 
 /*
- * Encode the underlying sourc stream by marking the end with a
+ * Encode the underlying source stream by marking the end with a
  * terminator byte and (optionally) escaping special bytes. If escaping
  * is not needed, specify the terminator as the escape byte.
  */
