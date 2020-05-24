@@ -1,15 +1,17 @@
 #include <errno.h>
 #include <assert.h>
 #include <fstrace.h>
+#include <fsdyn/bytearray.h>
 #include <fsdyn/fsalloc.h>
 #include "jsondecoder.h"
-#include "reservoir.h"
 #include "async_version.h"
 
 struct jsondecoder {
     async_t *async;
     uint64_t uid;
-    reservoir_t *source;
+    bytestream_1 source;
+    byte_array_t *buffer;
+    bool eof;
 };
 
 FSTRACE_DECL(ASYNC_JSONDECODER_CREATE,
@@ -23,8 +25,16 @@ jsondecoder_t *open_jsondecoder(async_t *async, bytestream_1 source,
     decoder->uid = fstrace_get_unique_id();
     FSTRACE(ASYNC_JSONDECODER_CREATE,
             decoder->uid, decoder, async, source.obj, max_encoding_size);
-    decoder->source = open_reservoir(async, max_encoding_size, source);
+    decoder->source = source;
+    decoder->buffer = make_byte_array(max_encoding_size);
+    decoder->eof = false;
     return decoder;
+}
+
+static ssize_t read_frame(void *obj, void *buf, size_t count)
+{
+    bytestream_1 *stream = obj;
+    return bytestream_1_read(*stream, buf, count);
 }
 
 FSTRACE_DECL(ASYNC_JSONDECODER_RECEIVE_SYNTAX_ERROR, "UID=%64u");
@@ -32,25 +42,34 @@ FSTRACE_DECL(ASYNC_JSONDECODER_RECEIVE_INPUT_DUMP, "UID=%64u TEXT=%A");
 
 static json_thing_t *do_receive(jsondecoder_t *decoder)
 {
-    if (!decoder->source) {
+    if (decoder->eof) {
         errno = 0;              /* EOF */
         return NULL;
     }
-    if (!reservoir_fill(decoder->source))
-        return NULL;
-    size_t amount = reservoir_amount(decoder->source);
-    size_t remaining = amount;
-    uint8_t *buffer = fsalloc(remaining);
-    uint8_t *p = buffer;
-    while (remaining) {
-        ssize_t count = reservoir_read(decoder->source, p, remaining);
-        assert(count > 0);
-        p += count;
-        remaining -= count;
+    for (;;) {
+        ssize_t count =
+            byte_array_append_stream(decoder->buffer,
+                                     read_frame,
+                                     &decoder->source,
+                                     1024);
+        if (count < 0 && errno == ENOSPC) {
+            char c;
+            count = bytestream_1_read(decoder->source, &c, 1);
+            if (count > 0)
+                errno = ENOSPC;
+                return NULL;
+        }
+        if (count < 0)
+            return NULL;
+        if (!count) {
+            decoder->eof = true;
+            break;
+        }
     }
+    const char *buffer = byte_array_data(decoder->buffer);
+    size_t amount = byte_array_size(decoder->buffer);
     FSTRACE(ASYNC_JSONDECODER_RECEIVE_INPUT_DUMP, decoder->uid, buffer, amount);
     json_thing_t *thing = json_utf8_decode(buffer, amount);
-    fsfree(buffer);
     if (!thing) {
         FSTRACE(ASYNC_JSONDECODER_RECEIVE_SYNTAX_ERROR, decoder->uid);
         errno = EILSEQ;
@@ -74,7 +93,8 @@ void jsondecoder_close(jsondecoder_t *decoder)
 {
     FSTRACE(ASYNC_JSONDECODER_CLOSE_FRAME, decoder->uid);
     assert(decoder->async);
-    reservoir_close(decoder->source);
+    bytestream_1_close(decoder->source);
+    destroy_byte_array(decoder->buffer);
     async_wound(decoder->async, decoder);
     decoder->async = NULL;
 }
@@ -85,7 +105,7 @@ void jsondecoder_register_callback(jsondecoder_t *decoder, action_1 action)
 {
     FSTRACE(ASYNC_JSONDECODER_REGISTER_FRAME,
             decoder->uid, action.obj, action.act);
-    reservoir_register_callback(decoder->source, action);
+    bytestream_1_register_callback(decoder->source, action);
 }
 
 FSTRACE_DECL(ASYNC_JSONDECODER_UNREGISTER_FRAME, "UID=%64u");
@@ -93,5 +113,5 @@ FSTRACE_DECL(ASYNC_JSONDECODER_UNREGISTER_FRAME, "UID=%64u");
 void jsondecoder_unregister_callback(jsondecoder_t *decoder)
 {
     FSTRACE(ASYNC_JSONDECODER_UNREGISTER_FRAME, decoder->uid);
-    reservoir_unregister_callback(decoder->source);
+    bytestream_1_unregister_callback(decoder->source);
 }
