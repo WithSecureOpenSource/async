@@ -3,6 +3,7 @@
 
 #include "asynctest.h"
 
-VERDICT test_json(void);
+VERDICT test_jsonyield(void);
+VERDICT test_jsondecoder(void);
 
 #endif
