@@ -1,5 +1,5 @@
-#ifndef __NOTIFICAITON__
-#define __NOTIFICAITON__
+#ifndef __NOTIFICATION__
+#define __NOTIFICATION__
 
 #include "async.h"
 #include "action_1.h"
