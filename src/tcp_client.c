@@ -16,6 +16,7 @@ typedef enum {
     TCP_CLIENT_RESOLVING,  /* performing address resolution */
     TCP_CLIENT_CONNECTING, /* establishing a connection */
     TCP_CLIENT_CONNECTED,  /* connection established but not relayed to user */
+    TCP_CLIENT_NOTIFIED,   /* connection established and user notified */
     TCP_CLIENT_RELAYED,    /* connection established and relayed to user */
     TCP_CLIENT_ZOMBIE
 } tcp_client_state_t;
@@ -162,6 +163,8 @@ static const char *trace_client_state(void *pstate)
             return "TCP_CLIENT_CONNECTING";
         case TCP_CLIENT_CONNECTED:
             return "TCP_CLIENT_CONNECTED";
+        case TCP_CLIENT_NOTIFIED:
+            return "TCP_CLIENT_NOTIFIED";
         case TCP_CLIENT_RELAYED:
             return "TCP_CLIENT_RELAYED";
         case TCP_CLIENT_ZOMBIE:
@@ -184,6 +187,9 @@ FSTRACE_DECL(ASYNC_TCP_CLIENT_NOTIFY, "UID=%64u");
 
 static void notify_choice(tcp_client_t *client)
 {
+    if (client->state == TCP_CLIENT_ZOMBIE)
+        return;
+
     FSTRACE(ASYNC_TCP_CLIENT_NOTIFY, client->uid);
     while (!list_empty(client->candidates)) {
         conn_candidate_t *other =
@@ -199,6 +205,7 @@ static void notify_choice(tcp_client_t *client)
         async_wound(client->async, other);
     }
     destroy_list(client->candidates);
+    set_client_state(client, TCP_CLIENT_NOTIFIED);
     async_execute(client->async, client->choice_callback);
 }
 
@@ -334,24 +341,27 @@ FSTRACE_DECL(ASYNC_TCP_CLIENT_CLOSE, "UID=%64u");
 void tcp_client_close(tcp_client_t *client)
 {
     FSTRACE(ASYNC_TCP_CLIENT_CLOSE, client->uid);
-    switch (client->state) {
+    tcp_client_state_t state = client->state;
+    set_client_state(client, TCP_CLIENT_ZOMBIE);
+    switch (state) {
         case TCP_CLIENT_RESOLVING:
             fsadns_cancel(client->query);
             break;
         case TCP_CLIENT_CONNECTING:
+        case TCP_CLIENT_CONNECTED:
             while (!list_empty(client->candidates)) {
                 conn_candidate_t *candidate =
                     (conn_candidate_t *) list_pop_first(client->candidates);
                 tcp_close_input_stream(candidate->conn);
+                /* Note: tcp_close will perform an immediate call to
+                 * candidate_close(). To make this a no-op, the state
+                 * must be changed to ZOMBIE before. */
                 tcp_close(candidate->conn);
-                /* Note: tcp_close will trigger a call to make_choice()
-                 * that will be performed before the candidate and the
-                 * client are deallocated. */
                 async_wound(client->async, candidate);
             }
             destroy_list(client->candidates);
             break;
-        case TCP_CLIENT_CONNECTED:
+        case TCP_CLIENT_NOTIFIED:
             tcp_close_input_stream(client->chosen);
             tcp_close(client->chosen);
             break;
@@ -361,7 +371,6 @@ void tcp_client_close(tcp_client_t *client)
             assert(false);
     }
     async_wound(client->async, client);
-    set_client_state(client, TCP_CLIENT_ZOMBIE);
 }
 
 FSTRACE_DECL(ASYNC_TCP_CLIENT_RESOLVED, "UID=%64u");
@@ -393,12 +402,13 @@ tcp_conn_t *tcp_client_establish(tcp_client_t *client)
         case TCP_CLIENT_RESOLVING:
             return resolve_and_establish(client);
         case TCP_CLIENT_CONNECTING:
+        case TCP_CLIENT_CONNECTED:
             if (list_empty(client->candidates))
                 errno = EDESTADDRREQ;
             else errno = EAGAIN;
             FSTRACE(ASYNC_TCP_CLIENT_ESTABLISH_FAIL, client->uid);
             return NULL;
-        case TCP_CLIENT_CONNECTED:
+        case TCP_CLIENT_NOTIFIED:
             FSTRACE(ASYNC_TCP_CLIENT_ESTABLISHED, client->uid);
             set_client_state(client, TCP_CLIENT_RELAYED);
             return client->chosen;
