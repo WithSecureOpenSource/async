@@ -1,15 +1,14 @@
 #include <errno.h>
 #include <assert.h>
+#include <string.h>
 #include <async/async.h>
 #include <async/queuestream.h>
 #include <async/stringstream.h>
 #include "asynctest-queuestream.h"
 
 enum {
-    QSTR_INIT,
-    QSTR_HELLO,
-    QSTR_QUIET,
-    QSTR_WORLD,
+    QSTR_ENQUEUE_INPUT,
+    QSTR_READ_INPUT,
     QSTR_TERMINATED,
     QSTR_DONE
 };
@@ -19,12 +18,19 @@ typedef struct {
     queuestream_t *qstr;
     int state, verdict;
     size_t offset;
+    uint8_t buffer[100];
+    const char **input;
 } QSTR_CONTEXT;
+
+static const char *INPUTS[] = {
+    "Hello",
+    " world",
+    NULL,
+};
 
 static void qstr_probe(QSTR_CONTEXT *context);
 
-static void qstr_init(QSTR_CONTEXT *context, ssize_t count,
-                      const uint8_t buffer[])
+static void qstr_enqueue_input(QSTR_CONTEXT *context, ssize_t count)
 {
     if (count >= 0 || errno != EAGAIN) {
         tlog("Expected EAGAIN, got %d (errno = %d)",
@@ -32,14 +38,19 @@ static void qstr_init(QSTR_CONTEXT *context, ssize_t count,
         async_quit_loop(context->async);
         return;
     }
-    stringstream_t *stringstr = open_stringstream(context->async, "Hello");
-    queuestream_enqueue(context->qstr,
-                        stringstream_as_bytestream_1(stringstr));
-    context->state = QSTR_HELLO;
+    if (*context->input) {
+        stringstream_t *stringstr =
+            open_stringstream(context->async, *context->input);
+        queuestream_enqueue(context->qstr,
+                            stringstream_as_bytestream_1(stringstr));
+        context->state = QSTR_READ_INPUT;
+    } else {
+        queuestream_terminate(context->qstr);
+        context->state = QSTR_TERMINATED;
+    }
 }
 
-static void qstr_hello(QSTR_CONTEXT *context, ssize_t count,
-                       const uint8_t buffer[])
+static void qstr_read_input(QSTR_CONTEXT *context, ssize_t count)
 {
     if (count <= 0) {
         tlog("Unexpected error %d (errno %d) from queuestream",
@@ -47,66 +58,31 @@ static void qstr_hello(QSTR_CONTEXT *context, ssize_t count,
         async_quit_loop(context->async);
         return;
     }
+    size_t len = strlen(*context->input);
     context->offset += count;
-    if (context->offset < 5) {
+    if (context->offset < len) {
         async_execute(context->async,
                       (action_1) { context, (act_1) qstr_probe });
         return;
     }
-    if (context->offset > 5) {
+    if (context->offset > len) {
         tlog("Too many bytes from queuestream");
+        async_quit_loop(context->async);
+        return;
+    }
+    if (memcmp(*context->input, context->buffer, len)) {
+        tlog("Input mismatch");
         async_quit_loop(context->async);
         return;
     }
     context->offset = 0;
-    context->state = QSTR_QUIET;
+    context->input++;
+    context->state = QSTR_ENQUEUE_INPUT;
     async_execute(context->async,
                   (action_1) { context, (act_1) qstr_probe });
 }
 
-static void qstr_quiet(QSTR_CONTEXT *context, ssize_t count,
-                       const uint8_t buffer[])
-{
-    if (count >= 0 || errno != EAGAIN) {
-        tlog("Expected EAGAIN, got %d (errno = %d)",
-             (int) count, (int) errno);
-        async_quit_loop(context->async);
-        return;
-    }
-    stringstream_t *stringstr = open_stringstream(context->async, " world");
-    queuestream_enqueue(context->qstr,
-                        stringstream_as_bytestream_1(stringstr));
-    context->state = QSTR_WORLD;
-    queuestream_terminate(context->qstr);
-}
-
-static void qstr_world(QSTR_CONTEXT *context, ssize_t count,
-                       const uint8_t buffer[])
-{
-    if (count <= 0) {
-        tlog("Unexpected error %d (errno %d) from queuestream",
-             (int) count, (int) errno);
-        async_quit_loop(context->async);
-        return;
-    }
-    context->offset += count;
-    if (context->offset < 6) {
-        async_execute(context->async,
-                      (action_1) { context, (act_1) qstr_probe });
-        return;
-    }
-    if (context->offset > 6) {
-        tlog("Too many bytes from queuestream");
-        async_quit_loop(context->async);
-        return;
-    }
-    context->state = QSTR_TERMINATED;
-    async_execute(context->async,
-                  (action_1) { context, (act_1) qstr_probe });
-}
-
-static void qstr_terminated(QSTR_CONTEXT *context, ssize_t count,
-                            const uint8_t buffer[])
+static void qstr_terminated(QSTR_CONTEXT *context, ssize_t count)
 {
     if (count != 0) {
         tlog("Unexpected error %d (errno %d) from queuestream",
@@ -124,25 +100,18 @@ static void qstr_probe(QSTR_CONTEXT *context)
 {
     if (context->state == QSTR_DONE) /* spurious? */
         return;
-    uint8_t buffer[100];
     ssize_t count = queuestream_read(context->qstr,
-                                     buffer + context->offset,
-                                     sizeof buffer - context->offset);
+                                     context->buffer + context->offset,
+                                     sizeof context->buffer - context->offset);
     switch (context->state) {
-        case QSTR_INIT:
-            qstr_init(context, count, buffer);
+        case QSTR_ENQUEUE_INPUT:
+            qstr_enqueue_input(context, count);
             break;
-        case QSTR_HELLO:
-            qstr_hello(context, count, buffer);
-            break;
-        case QSTR_QUIET:
-            qstr_quiet(context, count, buffer);
-            break;
-        case QSTR_WORLD:
-            qstr_world(context, count, buffer);
+        case QSTR_READ_INPUT:
+            qstr_read_input(context, count);
             break;
         case QSTR_TERMINATED:
-            qstr_terminated(context, count, buffer);
+            qstr_terminated(context, count);
             break;
         default:
             assert(0);
@@ -152,7 +121,8 @@ static void qstr_probe(QSTR_CONTEXT *context)
 VERDICT test_queuestream(void)
 {
     QSTR_CONTEXT context = {
-        .state = QSTR_INIT,
+        .state = QSTR_ENQUEUE_INPUT,
+        .input = INPUTS,
         .verdict = FAIL
     };
     async_t *async = context.async = make_async();
@@ -172,7 +142,8 @@ VERDICT test_queuestream(void)
 VERDICT test_relaxed_queuestream(void)
 {
     QSTR_CONTEXT context = {
-        .state = QSTR_INIT,
+        .state = QSTR_ENQUEUE_INPUT,
+        .input = INPUTS,
         .verdict = FAIL
     };
     async_t *async = context.async = make_async();
