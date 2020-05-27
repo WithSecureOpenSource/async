@@ -154,7 +154,7 @@ int async_poll(async_t *async, uint64_t *pnext_timeout);
 /*
  * This is the native main loop of the async library. The function never
  * returns unless async_quit_loop() is called or a system call error is
- * enountered.
+ * encountered.
  *
  * Returns a negative number in case of an error (consult errno). Some
  * errors (eg, EINTR) may not be fatal.

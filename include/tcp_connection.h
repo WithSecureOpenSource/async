@@ -108,7 +108,7 @@ void tcp_unregister_callback(tcp_conn_t *conn);
  * connection can still continue sending data. */
 bytestream_1 tcp_get_input_stream(tcp_conn_t *conn);
 
-/* The TCP connection reads data bytes from an extenal output stream,
+/* The TCP connection reads data bytes from an external output stream,
  * which is set using this function. Reading 0 (EOF) or an error (other
  * than EAGAIN) from the stream triggers a call to
  * tcp_shut_down(SHUT_WR). */
@@ -154,7 +154,7 @@ int tcp_recv_fd(tcp_conn_t *conn);
  *
  * Returned list_t contains elements of type integer_t from fsdyn/integer.h.
  *
- * Caller becomes owner of ther returned list_t.
+ * Caller becomes owner of the returned list_t.
  */
 list_t *tcp_peek_received_fds(tcp_conn_t *conn);
 

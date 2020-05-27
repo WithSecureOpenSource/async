@@ -36,7 +36,7 @@ enum {
  * read where reading can be continued normally.
  *
  * Consider wrapping the underlying stream in a nicestream_t as a small
- * read maytranslate into a large and slow read of the underlying
+ * read may translate into a large and slow read of the underlying
  * stream.
  */
 substream_t *make_substream(async_t *async, bytestream_1 stream,
