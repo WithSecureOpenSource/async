@@ -166,9 +166,9 @@ static void open_connection(jsonserver_t *server, tcp_conn_t *tcp_conn)
     conn->tcp_conn = tcp_conn;
     conn->output_stream = make_queuestream(server->async);
     bytestream_1 stream = queuestream_as_bytestream_1(conn->output_stream);
+    action_1 farewell_cb = { conn, (act_1) conn_output_closed };
     farewellstream_t *fws =
-        open_farewellstream(server->async, stream,
-                            (action_1) { conn, (act_1) conn_output_closed });
+        open_relaxed_farewellstream(server->async, stream, farewell_cb);
     tcp_set_output_stream(conn->tcp_conn, farewellstream_as_bytestream_1(fws));
     conn->input_stream =
         open_jsonyield(server->async,
