@@ -1,7 +1,7 @@
 struct async {
     uint64_t uid;
     int poll_fd;
-    avl_tree_t *timers;
+    priorq_t *timers;
     avl_tree_t *registrations;
     volatile bool quit;
     int wakeup_fd;
@@ -12,13 +12,10 @@ struct async {
 #endif
 };
 
-typedef struct {
+struct async_timer {
     uint64_t expires;
     uint64_t seqno;
-} async_timer_key_t;
-
-struct async_timer {
-    async_timer_key_t key;
+    void *loc;
     action_1 action;
     void **stack_trace;      /* Where the timer was scheduled or NULL */
 };

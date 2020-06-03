@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <fsdyn/fsalloc.h>
+#include <fsdyn/priority_queue.h>
 #include <fsdyn/avltree.h>
 #include <fsdyn/list.h>
 #include <fstrace.h>
@@ -27,19 +28,24 @@
 #include "async_imp.h"
 #include "async_version.h"
 
-static int timer_cmp(const void *tk1, const void *tk2)
+static int timer_cmp(const void *t1, const void *t2)
 {
-    const async_timer_key_t *key1 = tk1;
-    const async_timer_key_t *key2 = tk2;
-    if (key1->expires < key2->expires)
+    const async_timer_t *timer1 = t1;
+    const async_timer_t *timer2 = t2;
+    if (timer1->expires < timer2->expires)
         return -1;
-    if (key1->expires > key2->expires)
+    if (timer1->expires > timer2->expires)
         return 1;
-    if (key1->seqno < key2->seqno)
+    if (timer1->seqno < timer2->seqno)
         return -1;
-    if (key1->seqno > key2->seqno)
+    if (timer1->seqno > timer2->seqno)
         return 1;
     return 0;
+}
+
+static void timer_reloc(const void *t, void *loc)
+{
+    ((async_timer_t *) t)->loc = loc;
 }
 
 static int intptr_cmp(const void *i1, const void *i2)
@@ -93,7 +99,7 @@ async_t *make_async(void)
 
     FSTRACE(ASYNC_CREATE, async->uid, async, fd);
     async->poll_fd = fd;
-    async->timers = make_avl_tree(timer_cmp);
+    async->timers = make_priority_queue(timer_cmp, timer_reloc);
     async->registrations = make_avl_tree(intptr_cmp);
     async->wakeup_fd = -1;
     async->wounded_objects = make_list();
@@ -106,10 +112,7 @@ async_t *make_async(void)
 
 static async_timer_t *earliest_timer(async_t *async)
 {
-    avl_elem_t *earliest = avl_tree_get_first(async->timers);
-    if (earliest == NULL)
-        return NULL;
-    return (async_timer_t *) avl_elem_get_value(earliest);
+    return (async_timer_t *) priorq_peek(async->timers);
 }
 
 static void finish_wounded_object(async_t *async)
@@ -131,7 +134,7 @@ void destroy_async(async_t *async)
     async_timer_t *timer;
     while ((timer = earliest_timer(async)) != NULL)
         async_timer_cancel(async, timer);
-    destroy_avl_tree(async->timers);
+    destroy_priority_queue(async->timers);
     avl_elem_t *element;
     while ((element = avl_tree_get_first(async->registrations)) != NULL) {
         int fd = (intptr_t) avl_elem_get_key(element);
@@ -188,14 +191,14 @@ static async_timer_t *timer_start(async_t *async, uint64_t expires,
                                   action_1 action)
 {
     async_timer_t *timer = fsalloc(sizeof *timer);
-    timer->key.expires = expires;
-    timer->key.seqno = fstrace_get_unique_id();
+    timer->expires = expires;
+    timer->seqno = fstrace_get_unique_id();
     timer->action = action;
     if (FSTRACE_ENABLED(ASYNC_TIMER_BT)) {
         timer->stack_trace = fscalloc(BT_DEPTH, sizeof(void *));
         backtrace(timer->stack_trace, BT_DEPTH);
     } else timer->stack_trace = NULL;
-    (void) avl_tree_put(async->timers, &timer->key, timer);
+    priorq_enqueue(async->timers, timer);
     wake_up(async);
     return timer;
 }
@@ -207,16 +210,14 @@ async_timer_t *async_timer_start(async_t *async, uint64_t expires,
                                  action_1 action)
 {
     async_timer_t *timer = timer_start(async, expires, action);
-    FSTRACE(ASYNC_TIMER_START, timer->key.seqno, timer, async->uid, expires,
+    FSTRACE(ASYNC_TIMER_START, timer->seqno, timer, async->uid, expires,
             action.obj, action.act);
     return timer;
 }
 
 static void timer_cancel(async_t *async, async_timer_t *timer)
 {
-    avl_elem_t *element = avl_tree_pop(async->timers, &timer->key);
-    assert(element != NULL);
-    destroy_avl_element(element);
+    priorq_remove(async->timers, timer->loc);
     fsfree(timer->stack_trace);
     fsfree(timer);
 }
@@ -225,7 +226,7 @@ FSTRACE_DECL(ASYNC_TIMER_CANCEL, "UID=%64u");
 
 void async_timer_cancel(async_t *async, async_timer_t *timer)
 {
-    FSTRACE(ASYNC_TIMER_CANCEL, timer->key.seqno);
+    FSTRACE(ASYNC_TIMER_CANCEL, timer->seqno);
     timer_cancel(async, timer);
 }
 
@@ -357,7 +358,7 @@ FSTRACE_DECL(ASYNC_EXECUTE,
 void async_execute(async_t *async, action_1 action)
 {
     async_timer_t *timer = execute(async, action);
-    FSTRACE(ASYNC_EXECUTE, timer->key.seqno, timer, async, timer->key.expires,
+    FSTRACE(ASYNC_EXECUTE, timer->seqno, timer, async, timer->expires,
             action.obj, action.act);
 }
 
@@ -368,7 +369,7 @@ void async_wound(async_t *async, void *object)
     list_append(async->wounded_objects, object);
     action_1 dealloc_cb = { async, (act_1) finish_wounded_object };
     async_timer_t *timer = execute(async, dealloc_cb);
-    FSTRACE(ASYNC_WOUND, timer->key.seqno, timer, async, object);
+    FSTRACE(ASYNC_WOUND, timer->seqno, timer, async, object);
 }
 
 int async_fd(async_t *async)
@@ -378,7 +379,7 @@ int async_fd(async_t *async)
 
 static int64_t ns_remaining(async_t *async, async_timer_t *timer)
 {
-    return timer->key.expires - async_now(async);
+    return timer->expires - async_now(async);
 }
 
 static char *emit_char(char *p, const char *end, char c)
@@ -410,7 +411,7 @@ static void emit_timer_backtrace(async_timer_t *timer)
         p = emit_address(p, end, timer->stack_trace[i]);
     }
     *p = '\0';
-    FSTRACE(ASYNC_TIMER_BT, timer->key.seqno, buf);
+    FSTRACE(ASYNC_TIMER_BT, timer->seqno, buf);
 }
 
 FSTRACE_DECL(ASYNC_POLL_NO_TIMERS, "UID=%64u");
@@ -430,7 +431,7 @@ int async_poll(async_t *async, uint64_t *pnext_timeout)
     else {
         if (ns_remaining(async, timer) <= 0) {
             action_1 action = timer->action;
-            FSTRACE(ASYNC_POLL_TIMEOUT, timer->key.seqno,
+            FSTRACE(ASYNC_POLL_TIMEOUT, timer->seqno,
                     timer->action.obj, timer->action.act);
             if (FSTRACE_ENABLED(ASYNC_TIMER_BT) && timer->stack_trace)
                 emit_timer_backtrace(timer);
@@ -439,8 +440,8 @@ int async_poll(async_t *async, uint64_t *pnext_timeout)
             *pnext_timeout = 0;
             return 0;
         }
-        FSTRACE(ASYNC_POLL_NEXT_TIMER, async->uid, timer->key.expires);
-        *pnext_timeout = timer->key.expires;
+        FSTRACE(ASYNC_POLL_NEXT_TIMER, async->uid, timer->expires);
+        *pnext_timeout = timer->expires;
     }
     int count;
 #if USE_EPOLL
@@ -533,11 +534,11 @@ static int64_t take_immediate_action(async_t *async,
         }
         int64_t ns = ns_remaining(async, timer);
         if (ns > 0) {
-            FSTRACE(ASYNC_LOOP_NEXT_TIMER, async->uid, timer->key.expires);
+            FSTRACE(ASYNC_LOOP_NEXT_TIMER, async->uid, timer->expires);
             return ns;
         }
         action_1 action = timer->action;
-        FSTRACE(ASYNC_LOOP_TIMEOUT, timer->key.seqno,
+        FSTRACE(ASYNC_LOOP_TIMEOUT, timer->seqno,
                 timer->action.obj, timer->action.act);
         if (FSTRACE_ENABLED(ASYNC_TIMER_BT) && timer->stack_trace)
             emit_timer_backtrace(timer);
