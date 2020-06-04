@@ -72,3 +72,6 @@ env.Program(
 
 env.Program('fsadns_test',
             [ 'fsadns_test.c' ])
+
+env.Program('timerperf',
+            [ 'timerperf.c' ])
