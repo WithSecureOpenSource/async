@@ -108,9 +108,11 @@ void async_event_cancel(async_event_t *event);
 void destroy_async_event(async_event_t *event);
 
 /*
- * Run a task from the main loop.
+ * Run a task from the main loop. The action takes place without
+ * delay. However, before it is put into effect, it can be canceled
+ * using async_timer_cancel().
  */
-void async_execute(async_t *async, action_1 action);
+async_timer_t *async_execute(async_t *async, action_1 action);
 
 /*
  * Deallocate object using fsfree() from the main loop. The caller

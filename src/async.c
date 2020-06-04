@@ -99,6 +99,7 @@ async_t *make_async(void)
 
     FSTRACE(ASYNC_CREATE, async->uid, async, fd);
     async->poll_fd = fd;
+    async->immediate = make_list();
     async->timers = make_priority_queue(timer_cmp, timer_reloc);
     async->registrations = make_avl_tree(intptr_cmp);
     async->wakeup_fd = -1;
@@ -112,7 +113,14 @@ async_t *make_async(void)
 
 static async_timer_t *earliest_timer(async_t *async)
 {
-    return (async_timer_t *) priorq_peek(async->timers);
+    async_timer_t *timed = (async_timer_t *) priorq_peek(async->timers);
+    if (list_empty(async->immediate))
+        return timed;
+    async_timer_t *immediate = (async_timer_t *)
+        list_elem_get_value(list_get_first(async->immediate));
+    if (timed && timer_cmp(timed, immediate) < 0)
+        return timed;
+    return immediate;
 }
 
 static void finish_wounded_object(async_t *async)
@@ -135,6 +143,7 @@ void destroy_async(async_t *async)
     while ((timer = earliest_timer(async)) != NULL)
         async_timer_cancel(async, timer);
     destroy_priority_queue(async->timers);
+    destroy_list(async->immediate);
     avl_elem_t *element;
     while ((element = avl_tree_get_first(async->registrations)) != NULL) {
         int fd = (intptr_t) avl_elem_get_key(element);
@@ -187,17 +196,25 @@ enum {
 
 FSTRACE_DECL(ASYNC_TIMER_BT, "UID=%64u BT=%s");
 
-static async_timer_t *timer_start(async_t *async, uint64_t expires,
-                                  action_1 action)
+static async_timer_t *new_timer(async_t *async, bool immediate,
+                                uint64_t expires, action_1 action)
 {
     async_timer_t *timer = fsalloc(sizeof *timer);
     timer->expires = expires;
     timer->seqno = fstrace_get_unique_id();
+    timer->immediate = immediate;
     timer->action = action;
     if (FSTRACE_ENABLED(ASYNC_TIMER_BT)) {
         timer->stack_trace = fscalloc(BT_DEPTH, sizeof(void *));
         backtrace(timer->stack_trace, BT_DEPTH);
     } else timer->stack_trace = NULL;
+    return timer;
+}
+
+static async_timer_t *timer_start(async_t *async, uint64_t expires,
+                                  action_1 action)
+{
+    async_timer_t *timer = new_timer(async, false, expires, action);
     priorq_enqueue(async->timers, timer);
     wake_up(async);
     return timer;
@@ -217,7 +234,9 @@ async_timer_t *async_timer_start(async_t *async, uint64_t expires,
 
 static void timer_cancel(async_t *async, async_timer_t *timer)
 {
-    priorq_remove(async->timers, timer->loc);
+    if (timer->immediate)
+        list_remove(async->immediate, timer->loc);
+    else priorq_remove(async->timers, timer->loc);
     fsfree(timer->stack_trace);
     fsfree(timer);
 }
@@ -349,17 +368,21 @@ void destroy_async_event(async_event_t *event)
 
 static async_timer_t *execute(async_t *async, action_1 action)
 {
-    return timer_start(async, async->recent, action);
+    async_timer_t *timer = new_timer(async, true, async->recent, action);
+    timer->loc = list_append(async->immediate, timer);
+    wake_up(async);
+    return timer;
 }
 
 FSTRACE_DECL(ASYNC_EXECUTE,
              "UID=%64u PTR=%p ASYNC=%p EXPIRES=%64u OBJ=%p ACT=%p");
 
-void async_execute(async_t *async, action_1 action)
+async_timer_t *async_execute(async_t *async, action_1 action)
 {
     async_timer_t *timer = execute(async, action);
     FSTRACE(ASYNC_EXECUTE, timer->seqno, timer, async, timer->expires,
             action.obj, action.act);
+    return timer;
 }
 
 FSTRACE_DECL(ASYNC_WOUND, "UID=%64u PTR=%p ASYNC=%p OBJ=%p");
