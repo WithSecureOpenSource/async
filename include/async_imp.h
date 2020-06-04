@@ -1,6 +1,7 @@
 struct async {
     uint64_t uid;
     int poll_fd;
+    list_t *immediate;          /* of async_timer_t */
     priorq_t *timers;
     avl_tree_t *registrations;
     volatile bool quit;
@@ -15,6 +16,7 @@ struct async {
 struct async_timer {
     uint64_t expires;
     uint64_t seqno;
+    bool immediate;
     void *loc;
     action_1 action;
     void **stack_trace;      /* Where the timer was scheduled or NULL */
