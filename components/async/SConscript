@@ -6,6 +6,7 @@ include = env.Install(
     'include/async',
     [
         '#include/action_1.h',
+        '#include/alock.h',
         '#include/async.h',
         '#include/base64decoder.h',
         '#include/base64encoder.h',
