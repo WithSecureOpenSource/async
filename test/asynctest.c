@@ -25,6 +25,7 @@
 #include "asynctest-json.h"
 #include "asynctest-multipart.h"
 #include "asynctest-subprocess.h"
+#include "asynctest-alock.h"
 #include "asynctest-concatstream.h"
 #include "asynctest-tcp.h"
 #include "asynctest-pacerstream.h"
@@ -162,6 +163,7 @@ static const testcase_t testcases[] = {
     TESTCASE(test_base64encoder),
     TESTCASE(test_iconvstream),
     TESTCASE(test_subprocess),
+    TESTCASE(test_alock),
 };
 
 int main(int argc, const char *const *argv)

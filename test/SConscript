@@ -41,6 +41,7 @@ env.Command('fstracecheck',
 env.Program(
     'asynctest',
     [
+        'asynctest-alock.c',
         'asynctest-base64encoder.c',
         'asynctest-blobstream.c',
         'asynctest-blockingstream.c',

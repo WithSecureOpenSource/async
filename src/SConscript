@@ -16,6 +16,7 @@ env.ParseConfig(env['CONFIG_PARSER'])
 env.StaticLibrary(
     'async',
     [
+        'alock.c',
         'async.c',
         'async_version.c',
         'base64decoder.c',
