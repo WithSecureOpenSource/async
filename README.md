@@ -112,7 +112,9 @@ direct function call is more immediate, of course, but "backgrounding" tasks
 often has benefits: you can complete state transitions before the scheduled
 action is taken and multiple activities are interleaved fairly by the main loop.
 
-Tasks scheduled with `async_execute()` cannot be canceled.
+Like `async_timer_start()`, `async_execute()` returns a timer object.
+It is usually ignored but could be used by the application to cancel
+the pending action before it is executed.
 
 ## Notifications
 
