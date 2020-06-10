@@ -11,36 +11,14 @@
 #include <string.h>
 
 typedef struct {
-    async_t *async;
+    tester_base_t base;
     yield_1 yield;
     bytestream_1 *part;
     byte_array_t *buffer;
-    async_timer_t *timer;
     size_t pdu_count;
     char **parts;
     size_t parts_size;
-    VERDICT verdict;
 } tester_t;
-
-static void do_quit(tester_t *tester)
-{
-    action_1 quitter = { tester->async, (act_1) async_quit_loop };
-    tester->timer = NULL;
-    async_execute(tester->async, quitter);
-    tester->async = NULL;
-}
-
-static void quit_test(tester_t *tester)
-{
-    async_timer_cancel(tester->async, tester->timer);
-    do_quit(tester);
-}
-
-static void test_timeout(tester_t *tester)
-{
-    tlog("Test timeout");
-    do_quit(tester);
-}
 
 static bool verify_part(byte_array_t *array, const char *part)
 {
@@ -64,21 +42,21 @@ static void verify_receive(tester_t *tester);
 
 static void verify_read(tester_t *tester)
 {
-    if (!tester->async)
+    if (!tester->base.async)
         return;
     ssize_t count =
         byte_array_append_stream(tester->buffer, read_part, tester->part, 1024);
     if (count < 0) {
         if (errno != EAGAIN) {
             tlog("Errno %d from bytestream_1_read", errno);
-            quit_test(tester);
+            quit_test(&tester->base);
         }
         return;
     }
     if (!count) {
         if (tester->pdu_count < tester->parts_size &&
             !verify_part(tester->buffer, tester->parts[tester->pdu_count])) {
-            quit_test(tester);
+            quit_test(&tester->base);
             return;
         }
         tester->pdu_count++;
@@ -87,12 +65,12 @@ static void verify_read(tester_t *tester)
         return;
     }
     action_1 verification_cb = { tester, (act_1) verify_read };
-    async_execute(tester->async, verification_cb);
+    async_execute(tester->base.async, verification_cb);
 }
 
 static void verify_receive(tester_t *tester)
 {
-    if (!tester->async)
+    if (!tester->base.async)
         return;
     tester->part = yield_1_receive(tester->yield);
     if (!tester->part) {
@@ -104,17 +82,17 @@ static void verify_receive(tester_t *tester)
                      (unsigned) tester->pdu_count,
                      (unsigned) tester->parts_size);
             else
-                tester->verdict = PASS;
+                tester->base.verdict = PASS;
         } else
             tlog("Errno %d from yield_1_receive", errno);
         yield_1_close(tester->yield);
-        quit_test(tester);
+        quit_test(&tester->base);
         return;
     }
     byte_array_clear(tester->buffer);
     action_1 verification_cb = { tester, (act_1) verify_read };
     bytestream_1_register_callback(*tester->part, verification_cb);
-    async_execute(tester->async, verification_cb);
+    async_execute(tester->base.async, verification_cb);
 }
 
 typedef struct {
@@ -139,19 +117,12 @@ VERDICT test_multipart_single(test_data_t *test_data)
                                    tricklestream_as_bytestream_1(trickle),
                                    test_data->boundary);
     tester_t tester = {
-        .async = async,
         .yield = multipartdeserializer_as_yield_1(des),
         .buffer = make_byte_array(1024),
-        .verdict = FAIL,
         .parts = test_data->parts,
         .parts_size = test_data->parts_size,
     };
-    action_1 timeout_cb = { &tester, (act_1) test_timeout };
-    enum { MAX_DURATION = 10 };
-    tlog("  max duration = %d s", MAX_DURATION);
-    tester.timer = async_timer_start(async,
-                                     async_now(async) + MAX_DURATION * ASYNC_S,
-                                     timeout_cb);
+    init_test(&tester.base, async, 10);
     action_1 verification_cb = { &tester, (act_1) verify_receive };
     multipartdeserializer_register_callback(des, verification_cb);
     async_execute(async, verification_cb);
@@ -159,7 +130,7 @@ VERDICT test_multipart_single(test_data_t *test_data)
         tlog("Unexpected error from async_loop: %d", errno);
     destroy_byte_array(tester.buffer);
     destroy_async(async);
-    return posttest_check(tester.verdict);
+    return posttest_check(tester.base.verdict);
 }
 
 static test_data_t test_data[] = {

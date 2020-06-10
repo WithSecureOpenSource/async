@@ -82,40 +82,18 @@ static void enq_naive_pdu(async_t *async, queuestream_t *qstr,
 }
 
 typedef struct {
-    async_t *async;
+    tester_base_t base;
     yield_1 framer;
-    async_timer_t *timer;
     bytestream_1 *pdu;
     size_t pdu_count;
     size_t cursor;
-    VERDICT verdict;
 } tester_t;
-
-static void do_quit(tester_t *tester)
-{
-    action_1 quitter = { tester->async, (act_1) async_quit_loop };
-    tester->timer = NULL;
-    async_execute(tester->async, quitter);
-    tester->async = NULL;
-}
-
-static void quit_test(tester_t *tester)
-{
-    async_timer_cancel(tester->async, tester->timer);
-    do_quit(tester);
-}
-
-static void test_timeout(tester_t *tester)
-{
-    tlog("Test timeout");
-    do_quit(tester);
-}
 
 static void verify_receive(tester_t *tester);
 
 static void verify_read(tester_t *tester)
 {
-    if (!tester->async || !tester->pdu)
+    if (!tester->base.async || !tester->pdu)
         return;
     uint8_t buffer[1000];
     ssize_t count = bytestream_1_read(*tester->pdu, buffer, sizeof buffer);
@@ -123,7 +101,7 @@ static void verify_read(tester_t *tester)
         if (errno == EAGAIN)
             return;
         tlog("Errno %d from PDU read", errno);
-        async_quit_loop(tester->async);
+        quit_test(&tester->base);
         return;
     }
     if (!count) {
@@ -143,7 +121,7 @@ static void verify_read(tester_t *tester)
                  (unsigned) tester->pdu_count,
                  (unsigned) tester->cursor,
                  (unsigned) expected);
-            quit_test(tester);
+            quit_test(&tester->base);
             return;
         }
         bytestream_1_close(*tester->pdu);
@@ -157,23 +135,23 @@ static void verify_read(tester_t *tester)
     while (i < count)
         if (buffer[i++] != tester->cursor++ % 31) {
             tlog("Unexpected PDU[%u] content", (unsigned) tester->pdu_count);
-            quit_test(tester);
+            quit_test(&tester->base);
             return;
         }
     action_1 verification_cb = { tester, (act_1) verify_read };
-    async_execute(tester->async, verification_cb);
+    async_execute(tester->base.async, verification_cb);
 }
 
 static void verify_receive(tester_t *tester)
 {
-    if (!tester->async || tester->pdu)
+    if (!tester->base.async || tester->pdu)
         return;
     tester->pdu = yield_1_receive(tester->framer);
     if (tester->pdu) {
         tester->cursor = 0;
         action_1 verification_cb = { tester, (act_1) verify_read };
         bytestream_1_register_callback(*tester->pdu, verification_cb);
-        async_execute(tester->async, verification_cb);
+        async_execute(tester->base.async, verification_cb);
         return;
     }
     switch (errno) {
@@ -183,13 +161,13 @@ static void verify_receive(tester_t *tester)
             if (tester->pdu_count != 200 * 3)
                 tlog("Final pdu_count %u != %u (expected)",
                      (unsigned) tester->pdu_count, (unsigned) 200 * 3);
-            else tester->verdict = PASS;
+            else tester->base.verdict = PASS;
             yield_1_close(tester->framer);
-            quit_test(tester);
+            quit_test(&tester->base);
             break;
         default:
             tlog("Errno %d from chunkframer_receive", errno);
-            quit_test(tester);
+            quit_test(&tester->base);
     }
 }
 
@@ -221,23 +199,16 @@ static VERDICT test_framer(void (*enq_pdu)(async_t *, queuestream_t *,
                                       5000000, 101, 101010);
     yield_1 framer = open_framer(async, pacerstream_as_bytestream_1(pstr));
     tester_t tester = {
-        .async = async,
         .framer = framer,
-        .verdict = FAIL,
     };
-    action_1 timeout_cb = { &tester, (act_1) test_timeout };
-    enum { MAX_DURATION = 30 };
-    tlog("  max duration = %d s", MAX_DURATION);
-    tester.timer =
-        async_timer_start(async, async_now(async) + MAX_DURATION * ASYNC_S,
-                          timeout_cb);
+    init_test(&tester.base, async, 30);
     action_1 verification_cb = { &tester, (act_1) verify_receive };
     yield_1_register_callback(framer, verification_cb);
     async_execute(async, verification_cb);
     if (async_loop(async) < 0)
         tlog("Unexpected error from async_loop: %d", errno);
     destroy_async(async);
-    return posttest_check(tester.verdict);
+    return posttest_check(tester.base.verdict);
 }
 
 VERDICT test_chunkframer(void)

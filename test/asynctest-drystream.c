@@ -3,37 +3,25 @@
 #include <async/drystream.h>
 #include "asynctest-drystream.h"
 
-typedef struct {
-    async_t *async;
-    int verdict;
-} DRY_CONTEXT;
-
-static void dry_probe(DRY_CONTEXT *context)
+static void dry_probe(tester_base_t *context)
 {
     uint8_t buffer[100];
     ssize_t count = bytestream_1_read(drystream, buffer, sizeof buffer);
-    if (count >= 0 || errno != EAGAIN)
-        async_quit_loop(context->async);
-}
-
-static void dry_timeout(DRY_CONTEXT *context)
-{
-    context->verdict = PASS;
-    action_1 quit = { context->async, (act_1) async_quit_loop };
-    async_execute(context->async, quit);
+    if (count >= 0 || errno != EAGAIN) {
+        context->verdict = FAIL;
+        quit_test(context);
+    }
 }
 
 VERDICT test_drystream(void)
 {
-    DRY_CONTEXT context = {
-        .verdict = FAIL
-    };
-    async_t *async = context.async = make_async();
+    async_t *async = make_async();
+    tester_base_t context;
+    init_test(&context, async, 2);
+    context.verdict = PASS;
     action_1 probe = { &context, (act_1) dry_probe };
     bytestream_1_register_callback(drystream, probe);
     async_execute(async, probe);
-    async_timer_start(async, async_now(async) + 2 * ASYNC_S,
-                      (action_1) { &context, (act_1) dry_timeout });
     if (async_loop(async) < 0)
         tlog("Unexpected error from async_loop: %d", errno);
     bytestream_1_close(drystream);
