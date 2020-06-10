@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -34,6 +35,37 @@
 #include "asynctest-pausestream.h"
 #include "asynctest-base64encoder.h"
 #include "asynctest-iconvstream.h"
+
+static void do_quit(tester_base_t *tester)
+{
+    action_1 quit_cb = { tester->async, (act_1) async_quit_loop };
+    tester->timer = NULL;
+    async_execute(tester->async, quit_cb);
+    tester->async = NULL;
+}
+
+static void test_timeout(tester_base_t *tester)
+{
+    tlog("Test timeout");
+    do_quit(tester);
+}
+
+void init_test(tester_base_t *tester, async_t *async, int max_duration)
+{
+    tlog("  max duration = %d s", max_duration);
+    tester->async = async;
+    tester->verdict = FAIL;
+    action_1 timeout_cb = { tester, (act_1) test_timeout };
+    tester->timer = async_timer_start(async,
+                                      async_now(async) + max_duration * ASYNC_S,
+                                      timeout_cb);
+}
+
+void quit_test(tester_base_t *tester)
+{
+    async_timer_cancel(tester->async, tester->timer);
+    do_quit(tester);
+}
 
 static int failures = 0;
 

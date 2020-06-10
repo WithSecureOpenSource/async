@@ -17,18 +17,18 @@ static int nonblock(int fd)
 }
 
 typedef struct {
-    async_t *async;
+    tester_base_t base;
     int sd[2];
-    enum { READING, WRITING, FAILED, PASSED } state;
-} REGISTER_CONTEXT;
+    enum { READING, WRITING, DONE } state;
+} tester_t;
 
-static void supply_byte(REGISTER_CONTEXT *context)
+static void supply_byte(tester_t *context)
 {
     ssize_t count = write(context->sd[1], write, 1);
     assert(count == 1);
 }
 
-static void drain_it(REGISTER_CONTEXT *context)
+static void drain_it(tester_t *context)
 {
     uint8_t buffer[100];
     ssize_t count;
@@ -38,14 +38,13 @@ static void drain_it(REGISTER_CONTEXT *context)
     assert(errno == EAGAIN);
 }
 
-static void fail_it(REGISTER_CONTEXT *context)
+static void probe_it(tester_t *context)
 {
-    context->state = FAILED;
-    async_quit_loop(context->async);
-}
+    if (!context->base.async) {
+        context->state = DONE;
+        return;
+    }
 
-static void probe_it(REGISTER_CONTEXT *context)
-{
     uint8_t buffer[100];
     ssize_t count;
     switch (context->state) {
@@ -55,8 +54,8 @@ static void probe_it(REGISTER_CONTEXT *context)
                 if (errno == EAGAIN)
                     return;
                 tlog("Funny errno = %d from read", (int) errno);
-                context->state = FAILED;
-                async_quit_loop(context->async);
+                context->state = DONE;
+                quit_test(&context->base);
                 return;
             }
             assert(count == 1);
@@ -64,7 +63,7 @@ static void probe_it(REGISTER_CONTEXT *context)
                 count = write(context->sd[1], buffer, sizeof buffer);
             } while (count >= 0);
             assert(errno == EAGAIN);
-            async_execute(context->async,
+            async_execute(context->base.async,
                           (action_1) { context, (act_1) drain_it });
             context->state = WRITING;
             return;
@@ -75,11 +74,9 @@ static void probe_it(REGISTER_CONTEXT *context)
                      (int) count, (int) errno);
                 return;
             }
-            context->state = PASSED;
-            {
-                action_1 quit = { context->async, (act_1) async_quit_loop };
-                async_execute(context->async, quit);
-            }
+            context->state = DONE;
+            context->base.verdict = PASS;
+            quit_test(&context->base);
             return;
         default:
             tlog("Spurious probe");
@@ -88,57 +85,50 @@ static void probe_it(REGISTER_CONTEXT *context)
 
 VERDICT test_async_register(void)
 {
-    REGISTER_CONTEXT context = { .state = READING };
+    async_t *async = make_async();
+    tester_t context = { .state = READING };
+    init_test(&context.base, async, 1);
     int status = socketpair(AF_UNIX, SOCK_STREAM, 0, context.sd);
     assert(status >= 0);
     nonblock(context.sd[1]);
-    async_t *async = context.async = make_async();
     async_register(async, context.sd[0],
                    (action_1) { &context, (act_1) probe_it });
     uint8_t buffer[100];
     ssize_t count = read(context.sd[0], buffer, sizeof buffer);
     assert(count < 0 && errno == EAGAIN);
     async_execute(async, (action_1) { &context, (act_1) supply_byte });
-    async_timer_start(async, async_now(async) + 1 * ASYNC_S,
-                      (action_1) { async, (act_1) fail_it });
     if (async_loop(async) < 0)
         tlog("Unexpected error from async_loop: %d", errno);
     async_unregister(async, context.sd[0]);
     close(context.sd[0]);
     close(context.sd[1]);
     destroy_async(async);
-    switch (context.state) {
-        case PASSED:
-            return posttest_check(PASS);
-        default:
-            return FAIL;
-    }
+    return posttest_check(context.base.verdict);
 }
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct {
-    async_t *async;
+    tester_base_t base;
     int counter;
-    int verdict;
-} MULTITHREAD_CONTEXT;
+} mt_tester_t;
 
 enum { MT_COUNT = 5 };
 
-static void mt_timeout(MULTITHREAD_CONTEXT *context)
+static void mt_timeout(mt_tester_t *context)
 {
     if (++context->counter == MT_COUNT)
-        context->verdict = PASS;
+        context->base.verdict = PASS;
 }
 
 static void *aux_thread(void *arg)
 {
-    MULTITHREAD_CONTEXT *context = arg;
+    mt_tester_t *context = arg;
     int i;
     for (i = 0; i < MT_COUNT; i++) {
         pthread_mutex_lock(&mutex);
-        async_timer_start(context->async,
-                          async_now(context->async) + ASYNC_S,
+        async_timer_start(context->base.async,
+                          async_now(context->base.async) + ASYNC_S,
                           (action_1) { context, (act_1) mt_timeout });
         pthread_mutex_unlock(&mutex);
         sleep(1);
@@ -163,12 +153,11 @@ VERDICT test_async_loop_protected(void)
     pthread_t thread;
     pthread_attr_t attr;
     pthread_attr_init(&attr);
-    MULTITHREAD_CONTEXT context = { .verdict = FAIL };
-    async_t *async = context.async = make_async();
+    async_t *async = make_async();
+    mt_tester_t context = {};
+    init_test(&context.base, async, MT_COUNT + 2);
     pthread_create(&thread, &attr, aux_thread, &context);
     pthread_mutex_lock(&mutex);
-    async_timer_start(async, async_now(async) + (MT_COUNT + 2) * ASYNC_S,
-                      (action_1) { async, (act_1) async_quit_loop });
     if (async_loop_protected(async,
                              lock,
                              unlock,
@@ -177,33 +166,31 @@ VERDICT test_async_loop_protected(void)
     pthread_mutex_unlock(&mutex);
     destroy_async(async);
     pthread_join(thread, NULL);
-    return posttest_check(context.verdict);
+    return posttest_check(context.base.verdict);
 }
 
 VERDICT test_async_poll(void)
 {
-    REGISTER_CONTEXT context = { .state = READING };
+    async_t *async = make_async();
+    tester_t context = { .state = READING };
+    init_test(&context.base, async, 1);
     int status = socketpair(AF_UNIX, SOCK_STREAM, 0, context.sd);
     assert(status >= 0);
     nonblock(context.sd[1]);
-    async_t *async = context.async = make_async();
     async_register(async, context.sd[0],
                    (action_1) { &context, (act_1) probe_it });
     uint8_t buffer[100];
     ssize_t count = read(context.sd[0], buffer, sizeof buffer);
     assert(count < 0 && errno == EAGAIN);
     async_execute(async, (action_1) { &context, (act_1) supply_byte });
-    async_timer_start(async, async_now(async) + 1 * ASYNC_S,
-                      (action_1) { async, (act_1) fail_it });
     int fd = async_fd(async);
-    while (context.state != FAILED && context.state != PASSED) {
+    while (context.state != DONE) {
         fd_set fds;
         FD_ZERO(&fds);
         FD_SET(fd, &fds);
         uint64_t timeout;
         int status = async_poll(async, &timeout);
         if (status < 0) {
-            context.state = FAILED;
             break;
         }
         int64_t delta = timeout - async_now(async);
@@ -220,11 +207,6 @@ VERDICT test_async_poll(void)
     close(context.sd[0]);
     close(context.sd[1]);
     destroy_async(async);
-    switch (context.state) {
-        case PASSED:
-            return posttest_check(PASS);
-        default:
-            return FAIL;
-    }
+    return posttest_check(context.base.verdict);
 }
 

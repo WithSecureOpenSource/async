@@ -5,13 +5,12 @@
 #include "asynctest-nicestream.h"
 
 typedef struct {
-    async_t *async;
+    tester_base_t base;
     bytestream_1 stream;
     int count;
-    int verdict;
-} NICE_CONTEXT;
+} tester_t;
 
-static void nice_probe(NICE_CONTEXT *context)
+static void nice_probe(tester_t *context)
 {
     enum { REPEAT = 5 };
     uint8_t buffer[100];
@@ -19,19 +18,19 @@ static void nice_probe(NICE_CONTEXT *context)
     if (count != sizeof buffer) {
         tlog("Expected a full buffer, got %d (errno = %d)",
              (int) count, (int) errno);
-        async_quit_loop(context->async);
+        quit_test(&context->base);
         return;
     }
     count = bytestream_1_read(context->stream, buffer, sizeof buffer);
     if (count >= 0 || errno != EAGAIN) {
         tlog("Expected EAGAIN, got %d (errno = %d)",
              (int) count, (int) errno);
-        async_quit_loop(context->async);
+        quit_test(&context->base);
         return;
     }
     if (++context->count == REPEAT) {
-        context->verdict = PASS;
-        async_quit_loop(context->async);
+        context->base.verdict = PASS;
+        quit_test(&context->base);
         return;
     }
 }
@@ -39,11 +38,11 @@ static void nice_probe(NICE_CONTEXT *context)
 VERDICT test_nicestream(void)
 {
     enum { MAX_BURST = 10 };
-    NICE_CONTEXT context = {
+    async_t *async = make_async();
+    tester_t context = {
         .count = 0,
-        .verdict = FAIL
     };
-    async_t *async = context.async = make_async();
+    init_test(&context.base, async, 2);
     nicestream_t *nicestr = make_nice(async, zerostream, MAX_BURST);
     context.stream = nicestream_as_bytestream_1(nicestr);
     action_1 probe = { &context, (act_1) nice_probe };
@@ -53,5 +52,5 @@ VERDICT test_nicestream(void)
         tlog("Unexpected error from async_loop: %d", errno);
     nicestream_close(nicestr);
     destroy_async(async);
-    return posttest_check(context.verdict);
+    return posttest_check(context.base.verdict);
 }

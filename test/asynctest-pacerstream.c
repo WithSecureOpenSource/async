@@ -6,10 +6,9 @@
 #include "asynctest-pacerstream.h"
 
 typedef struct {
-    async_t *async;
+    tester_base_t base;
     pacerstream_t *pacer;
-    int verdict;
-} CONTEXT;
+} tester_t;
 
 enum {
     TOTAL_BYTE_COUNT = 100000,
@@ -20,8 +19,11 @@ enum {
 #define TOTAL_TIME 2.0
 static const double PACE = TOTAL_BYTE_COUNT / TOTAL_TIME;
 
-static void probe(CONTEXT *context)
+static void probe(tester_t *context)
 {
+    if (!context->base.async)
+        return;
+
     uint8_t buffer[100];
     size_t burst_size = 0;
     for (;;) {
@@ -31,21 +33,20 @@ static void probe(CONTEXT *context)
             if (errno != EAGAIN) {
                 tlog("Unexpected error %d (errno %d)",
                      (int) count, (int) errno);
-                async_quit_loop(context->async);
+                quit_test(&context->base);
                 return;
             }
             return;
         }
         if (count == 0) {
-            context->verdict = PASS;
-            action_1 quit = { context->async, (act_1) async_quit_loop };
-            async_execute(context->async, quit);
+            context->base.verdict = PASS;
+            quit_test(&context->base);
             return;
         }
         burst_size += count;
         if (burst_size > MAX_BURST) {
             tlog("Maximum burst size exceeded");
-            async_quit_loop(context->async);
+            quit_test(&context->base);
             return;
         }
     }
@@ -53,26 +54,23 @@ static void probe(CONTEXT *context)
 
 VERDICT test_pacerstream(void)
 {
-    CONTEXT context = {
-        .verdict = FAIL
-    };
-    async_t *async = context.async = make_async();
+    async_t *async = make_async();
+    tester_t context = {};
+    init_test(&context.base, async, TOTAL_TIME + 2);
     substream_t *substr =
         make_substream(async, zerostream, SUBSTREAM_CLOSE_AT_END,
                        0, TOTAL_BYTE_COUNT);
     pacerstream_t *pacer = context.pacer =
         pace_stream(async, substream_as_bytestream_1(substr),
                     PACE, MIN_BURST, MAX_BURST);
-    uint64_t t0 = async_now(async);
-    async_timer_start(async, t0 + (uint64_t) ((TOTAL_TIME + 2) * ASYNC_S),
-                      (action_1) { async, (act_1) async_quit_loop });
     action_1 probe_action = (action_1) { &context, (act_1) probe };
     pacerstream_register_callback(pacer, probe_action);
     async_execute(async, probe_action);
+    uint64_t t0 = async_now(async);
     if (async_loop(async) < 0)
         tlog("Unexpected error from async_loop: %d", errno);
-    if (context.verdict != PASS)
-        return context.verdict;
+    if (context.base.verdict != PASS)
+        return context.base.verdict;
     uint64_t t1 = async_now(async);
     double duration = (t1 - t0) / (double) ASYNC_S;
     if (duration < 0.9 * TOTAL_TIME) {

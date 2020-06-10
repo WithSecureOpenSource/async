@@ -80,29 +80,21 @@ static bytestream_1 source_as_bytestream_1(source_t *source)
 }
 
 typedef struct {
-    async_t *async;
+    tester_base_t base;
     bytestream_1 material;
     size_t size, cursor;
-    VERDICT verdict;
 } tester_t;
-
-static void quit_test(tester_t *tester)
-{
-    action_1 quitter = { tester->async, (act_1) async_quit_loop };
-    async_execute(tester->async, quitter);
-    tester->async = NULL;
-}
 
 static void verify_read(tester_t *tester)
 {
-    if (!tester->async)
+    if (!tester->base.async)
         return;
     uint8_t buffer[200];
     ssize_t count = bytestream_1_read(tester->material, buffer, sizeof buffer);
     if (count < 0) {
         if (errno != EAGAIN) {
             tlog("Errno %d from bytestream_1_read", errno);
-            quit_test(tester);
+            quit_test(&tester->base);
         }
         return;
     }
@@ -111,9 +103,9 @@ static void verify_read(tester_t *tester)
             tlog("Final byte count %lu != %lu (expected)",
                  (unsigned long) tester->cursor,
                  (unsigned long) tester->size);
-        else tester->verdict = PASS;
+        else tester->base.verdict = PASS;
         bytestream_1_close(tester->material);
-        quit_test(tester);
+        quit_test(&tester->base);
         return;
     }
     size_t i;
@@ -123,11 +115,11 @@ static void verify_read(tester_t *tester)
             tlog("Bad byte at %lu: %u != %u (expected)",
                  (unsigned long) tester->cursor,
                  buffer[i], (uint8_t) tester->cursor);
-            quit_test(tester);
+            quit_test(&tester->base);
             return;
         }
     action_1 verification_cb = { tester, (act_1) verify_read };
-    async_execute(tester->async, verification_cb);
+    async_execute(tester->base.async, verification_cb);
 }
 
 VERDICT test_base64encoder(void)
@@ -147,16 +139,15 @@ VERDICT test_base64encoder(void)
     nicestream_t *nicestr3 =
         make_nice(async, base64decoder_as_bytestream_1(decoder), 97);
     tester_t tester = {
-        .async = async,
         .material = nicestream_as_bytestream_1(nicestr3),
         .size = STREAM_LENGTH,
-        .verdict = FAIL
     };
+    init_test(&tester.base, async, 2);
     action_1 verification_cb = { &tester, (act_1) verify_read };
     nicestream_register_callback(nicestr3, verification_cb);
     async_execute(async, verification_cb);
     if (async_loop(async) < 0)
         tlog("Unexpected error from async_loop: %d", errno);
     destroy_async(async);
-    return posttest_check(tester.verdict);
+    return posttest_check(tester.base.verdict);
 }
