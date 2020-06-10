@@ -87,5 +87,3 @@ VERDICT test_pacerstream(void)
     destroy_async(async);
     return posttest_check(PASS);
 }
-
-void pacerstream_reset(pacerstream_t *pacer);

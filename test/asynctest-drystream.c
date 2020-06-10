@@ -5,8 +5,6 @@
 
 typedef struct {
     async_t *async;
-    bytestream_1 stream;
-    int count;
     int verdict;
 } DRY_CONTEXT;
 

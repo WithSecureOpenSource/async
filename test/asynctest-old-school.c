@@ -101,12 +101,6 @@ static void probe_it(REGISTER_CONTEXT *context)
             tlog("spuriously woken up while in DONT_DRAIN_YET");
             async_quit_loop(context->async);
             return;
-
-
-            async_execute(context->async,
-                          (action_1) { context, (act_1) drain_it });
-
-            return;
         case DRAINED:
             context->state = PASSED;
             async_quit_loop(context->async);
