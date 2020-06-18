@@ -697,14 +697,6 @@ static void schedule_user_probe(tcp_conn_t *conn)
     async_execute(conn->async, (action_1) { conn, (act_1) user_probe });
 }
 
-FSTRACE_DECL(ASYNC_TCP_SCHEDULE_SOCKET_PROBE, "UID=%64u");
-
-static void schedule_socket_probe(tcp_conn_t *conn)
-{
-    FSTRACE(ASYNC_TCP_SCHEDULE_SOCKET_PROBE, conn->uid);
-    async_execute(conn->async, (action_1) { conn, (act_1) socket_probe });
-}
-
 void set_output_stream(tcp_conn_t *conn, bytestream_1 output_stream)
 {
     if (inactive(conn))
@@ -731,6 +723,8 @@ FSTRACE_DECL(ASYNC_TCP_CONNECT_SOCKET_FAIL, "UID=%64u ERRNO=%e");
 FSTRACE_DECL(ASYNC_TCP_CONNECT_BIND_FAIL, "UID=%64u ERRNO=%e");
 FSTRACE_DECL(ASYNC_TCP_CONNECT_GETFL_FAIL, "UID=%64u ERRNO=%e");
 FSTRACE_DECL(ASYNC_TCP_CONNECT_SETFL_FAIL, "UID=%64u ERRNO=%e");
+FSTRACE_DECL(ASYNC_TCP_CONNECT_IMMEDIATE, "UID=%64u");
+FSTRACE_DECL(ASYNC_TCP_CONNECT_IN_PROGRESS, "UID=%64u");
 FSTRACE_DECL(ASYNC_TCP_CONNECT_FAIL, "UID=%64u ERRNO=%e");
 FSTRACE_DECL(ASYNC_TCP_CONNECT_ADOPT, "UID=%64u FD=%d");
 
@@ -773,7 +767,11 @@ tcp_conn_t *tcp_connect(async_t *async, const struct sockaddr *from,
         return NULL;
     }
     status = connect(connfd, to, addrlen);
-    if (status < 0 && errno != EINPROGRESS) {
+    if (status >= 0)
+        FSTRACE(ASYNC_TCP_CONNECT_IMMEDIATE, uid);
+    else if (errno == EINPROGRESS)
+        FSTRACE(ASYNC_TCP_CONNECT_IN_PROGRESS, uid);
+    else {
         FSTRACE(ASYNC_TCP_CONNECT_FAIL, uid);
         int err = errno;
         close(connfd);
@@ -887,10 +885,7 @@ tcp_conn_t *tcp_accept(tcp_server_t *server,
     uint64_t uid = fstrace_get_unique_id();
     const socklen_t length = addrlen != NULL ? *addrlen : 0;
     FSTRACE(ASYNC_TCP_ACCEPT, server->uid, uid, addr, length, connfd);
-    tcp_conn_t *conn = adopt_connection(server->async, uid, connfd);
-    if (conn)
-        schedule_socket_probe(conn);
-    return conn;
+    return adopt_connection(server->async, uid, connfd);
 }
 
 int tcp_get_fd(tcp_conn_t *conn)
@@ -1068,7 +1063,9 @@ static tcp_conn_t *adopt_connection(async_t *async, uint64_t uid, int connfd)
 #else
     conn->flush_socket = no_flush_socket;
 #endif
-    async_register(async, conn->fd, (action_1) { conn, (act_1) socket_probe });
+    action_1 socket_probe_cb = { conn, (act_1) socket_probe };
+    async_register(async, conn->fd, socket_probe_cb);
+    async_execute(conn->async, socket_probe_cb);
     conn->input.state = conn->output.state = CONNECTING;
     conn->flags = TCP_FLAG_EPOLL_SEND | TCP_FLAG_INGRESS_PENDING;
     return conn;
