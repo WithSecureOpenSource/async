@@ -697,6 +697,14 @@ static void schedule_user_probe(tcp_conn_t *conn)
     async_execute(conn->async, (action_1) { conn, (act_1) user_probe });
 }
 
+FSTRACE_DECL(ASYNC_TCP_SCHEDULE_SOCKET_PROBE, "UID=%64u");
+
+static void schedule_socket_probe(tcp_conn_t *conn)
+{
+    FSTRACE(ASYNC_TCP_SCHEDULE_SOCKET_PROBE, conn->uid);
+    async_execute(conn->async, (action_1) { conn, (act_1) socket_probe });
+}
+
 void set_output_stream(tcp_conn_t *conn, bytestream_1 output_stream)
 {
     if (inactive(conn))
@@ -726,7 +734,6 @@ FSTRACE_DECL(ASYNC_TCP_CONNECT_SETFL_FAIL, "UID=%64u ERRNO=%e");
 FSTRACE_DECL(ASYNC_TCP_CONNECT_IMMEDIATE, "UID=%64u");
 FSTRACE_DECL(ASYNC_TCP_CONNECT_IN_PROGRESS, "UID=%64u");
 FSTRACE_DECL(ASYNC_TCP_CONNECT_FAIL, "UID=%64u ERRNO=%e");
-FSTRACE_DECL(ASYNC_TCP_CONNECT_ADOPT, "UID=%64u FD=%d");
 
 /* Somewhat shortsighted to assume that 'from' and 'to' have to have the
  * same 'addrlen' (see unix(7)). */
@@ -767,19 +774,24 @@ tcp_conn_t *tcp_connect(async_t *async, const struct sockaddr *from,
         return NULL;
     }
     status = connect(connfd, to, addrlen);
-    if (status >= 0)
+    if (status >= 0) {
         FSTRACE(ASYNC_TCP_CONNECT_IMMEDIATE, uid);
-    else if (errno == EINPROGRESS)
-        FSTRACE(ASYNC_TCP_CONNECT_IN_PROGRESS, uid);
-    else {
-        FSTRACE(ASYNC_TCP_CONNECT_FAIL, uid);
-        int err = errno;
-        close(connfd);
-        errno = err;
-        return NULL;
+        tcp_conn_t *conn = adopt_connection(async, uid, connfd);
+        /* Invoke socket_probe changes the status to connected. */
+        if (conn)
+            schedule_socket_probe(conn);
+        return conn;
     }
-    FSTRACE(ASYNC_TCP_CONNECT_ADOPT, uid, connfd);
-    return adopt_connection(async, uid, connfd);
+    if (errno == EINPROGRESS) {
+        FSTRACE(ASYNC_TCP_CONNECT_IN_PROGRESS, uid);
+        /* We must not invoke socket_probe before epoll tells us to. */
+        return adopt_connection(async, uid, connfd);
+    }
+    FSTRACE(ASYNC_TCP_CONNECT_FAIL, uid);
+    int err = errno;
+    close(connfd);
+    errno = err;
+    return NULL;
 }
 
 FSTRACE_DECL(ASYNC_TCP_SERVER_PROBE_INACTIVE, "UID=%64u");
@@ -885,7 +897,10 @@ tcp_conn_t *tcp_accept(tcp_server_t *server,
     uint64_t uid = fstrace_get_unique_id();
     const socklen_t length = addrlen != NULL ? *addrlen : 0;
     FSTRACE(ASYNC_TCP_ACCEPT, server->uid, uid, addr, length, connfd);
-    return adopt_connection(server->async, uid, connfd);
+    tcp_conn_t *conn = adopt_connection(server->async, uid, connfd);
+    if (conn)
+        schedule_socket_probe(conn);
+    return conn;
 }
 
 int tcp_get_fd(tcp_conn_t *conn)
@@ -1065,7 +1080,6 @@ static tcp_conn_t *adopt_connection(async_t *async, uint64_t uid, int connfd)
 #endif
     action_1 socket_probe_cb = { conn, (act_1) socket_probe };
     async_register(async, conn->fd, socket_probe_cb);
-    async_execute(conn->async, socket_probe_cb);
     conn->input.state = conn->output.state = CONNECTING;
     conn->flags = TCP_FLAG_EPOLL_SEND | TCP_FLAG_INGRESS_PENDING;
     return conn;
