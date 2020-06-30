@@ -540,10 +540,7 @@ FSTRACE_DECL(ASYNC_LOOP_NEXT_TIMER, "UID=%64u EXPIRES=%64u");
 FSTRACE_DECL(ASYNC_LOOP_TIMEOUT, "UID=%64u OBJ=%p ACT=%p");
 
 /* Return nanoseconds till the next timer expiry or a negative number. */
-static int64_t take_immediate_action(async_t *async,
-                                     void (*lock)(void *),
-                                     void (*unlock)(void *),
-                                     void *lock_data)
+static int64_t take_immediate_action(async_t *async)
 {
     enum {
         MAX_IO_STARVATION = 20
@@ -566,15 +563,9 @@ static int64_t take_immediate_action(async_t *async,
         if (FSTRACE_ENABLED(ASYNC_TIMER_BT) && timer->stack_trace)
             emit_timer_backtrace(timer);
         timer_cancel(async, timer);
-        unlock(lock_data);
         action_1_perf(action);
-        lock(lock_data);
     }
     return 0;
-}
-
-static void no_op(void *lock_data)
-{
 }
 
 #if USE_EPOLL
@@ -614,7 +605,7 @@ int async_loop(async_t *async)
     async->wakeup_fd = -1;
     async->quit = false;
     for (;;) {
-        int64_t ns = take_immediate_action(async, no_op, no_op, NULL);
+        int64_t ns = take_immediate_action(async);
         if (async->quit) {
             FSTRACE(ASYNC_LOOP_QUIT, async->uid);
             return 0;
@@ -703,7 +694,7 @@ int async_loop_protected(async_t *async,
         return -1;
     for (;;) {
         drain(pipefds[0]);
-        int64_t ns = take_immediate_action(async, lock, unlock, lock_data);
+        int64_t ns = take_immediate_action(async);
         if (async->quit) {
             finish_protected_loop(async, pipefds);
             FSTRACE(ASYNC_LOOP_PROTECTED_QUIT, async->uid);

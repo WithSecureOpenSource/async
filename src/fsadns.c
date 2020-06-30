@@ -326,7 +326,7 @@ FSTRACE_DECL(FSADNS_SERVE_PTHREAD_CREATE_FAIL,
 FSTRACE_DECL(FSADNS_SERVE_PTHREAD_CREATE,
              "UID=%64u PID=%P TID=%T READY=%u QUOTA=%u");
 
-static void thread_probe_locked(shared_t *shared)
+static void probe_server(shared_t *shared)
 {
     if (shared->ready) {
         notify(shared);
@@ -365,7 +365,7 @@ static void serve_requests(shared_t *shared)
         json_thing_t *request = json_conn_receive(shared->conn);
         if (request) {
             shared->ready--;
-            thread_probe_locked(shared);
+            probe_server(shared);
             unlock(shared);
             json_thing_t *response = resolve(shared, request);
             lock(shared);
@@ -383,16 +383,6 @@ static void serve_requests(shared_t *shared)
             fatal();
         }
     }
-}
-
-FSTRACE_DECL(FSADNS_SERVE_PROBE, "UID=%64u PID=%P TID=%T");
-
-static void probe_server(shared_t *shared)
-{
-    FSTRACE(FSADNS_SERVE_PROBE, shared->dns->uid);
-    lock(shared);
-    thread_probe_locked(shared);
-    unlock(shared);
 }
 
 FSTRACE_DECL(FSADNS_SERVING, "UID=%64u PID=%P");
@@ -415,7 +405,7 @@ static void serve(int fd, fsadns_t *dns)
     action_1 probe_cb = { &shared, (act_1) probe_server };
     json_conn_register_callback(shared.conn, probe_cb);
     lock(&shared);
-    thread_probe_locked(&shared);
+    probe_server(&shared);
     for (;;) {
         int status =
             async_loop_protected(async, (void *) lock, (void *) unlock,
