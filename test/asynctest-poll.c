@@ -127,10 +127,8 @@ enum { MT_COUNT = 5 };
 
 static void mt_timeout(MULTITHREAD_CONTEXT *context)
 {
-    pthread_mutex_lock(&mutex);
     if (++context->counter == MT_COUNT)
         context->verdict = PASS;
-    pthread_mutex_unlock(&mutex);
 }
 
 static void *aux_thread(void *arg)
