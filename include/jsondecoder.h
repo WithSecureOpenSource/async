@@ -25,6 +25,28 @@ void jsondecoder_unregister_callback(jsondecoder_t *decoder);
 
 #ifdef __cplusplus
 }
+
+#include <functional>
+#include <memory>
+
+namespace fsecure {
+namespace async {
+
+// std::unique_ptr for jsondecoder_t with custom deleter.
+using JsondecoderPtr =
+    std::unique_ptr<jsondecoder_t, std::function<void(jsondecoder_t *)>>;
+
+// Create JsondecoderPtr that takes ownership of the provided jsondecoder_t.
+// Pass nullptr to create an instance which doesn't contain any jsondecoder_t
+// object.
+inline JsondecoderPtr make_jsondecoder_ptr(jsondecoder_t *decoder)
+{
+    return { decoder, jsondecoder_close };
+}
+
+} // namespace async
+} // namespace fsecure
+
 #endif
 
 #endif
