@@ -55,9 +55,10 @@ static json_thing_t *do_receive(jsondecoder_t *decoder)
         if (count < 0 && errno == ENOSPC) {
             char c;
             count = bytestream_1_read(decoder->source, &c, 1);
-            if (count > 0)
+            if (count > 0) {
                 errno = ENOSPC;
                 return NULL;
+            }
         }
         if (count < 0)
             return NULL;
