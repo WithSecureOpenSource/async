@@ -39,8 +39,10 @@ fsadns_query_t *fsadns_resolve(fsadns_t *dns,
  * return values. In particular, EAI_SYSTEM with errno == EAGAIN is
  * returned when the result is not available yet.
  *
- * The function returns 0 when res contains a valid result. In that
- * situation, the query object is freed and must not be consulted
+ * The function returns 0 when res contains a valid result.
+ *
+ * The function frees the query object except if it returns EAI_SYSTEM
+ * with errno == EAGAIN. A freed query object must not be consulted
  * again. */
 int fsadns_check(fsadns_query_t *query, struct addrinfo **res);
 
