@@ -417,22 +417,34 @@ static void serve(int fd, fsadns_t *dns)
     }
 }
 
-static void dns_probe(fsadns_t *dns)
+static void dns_probe(fsadns_t *dns);
+static void destroy_query(fsadns_query_t *query);
+
+FSTRACE_DECL(FSADNS_MARK_ERROR, "UID=%64u ERRNO=%E");
+
+static void mark_protocol_error(fsadns_t *dns, int error)
 {
-    if (!dns->async)
-        return;
-    list_elem_t *e;
-    for (e = list_get_first(dns->queries); e; e = list_next(e)) {
+    FSTRACE(FSADNS_MARK_ERROR, dns->uid, error);
+    dns->error = error;
+    list_elem_t *e = list_get_first(dns->queries);
+    while (e) {
+        list_elem_t *next = list_next(e);
         fsadns_query_t *q = (fsadns_query_t *) list_elem_get_value(e);
         switch (q->state) {
             case QUERY_REQUESTED_ADDRESS:
             case QUERY_REQUESTED_NAME:
+            case QUERY_REPLIED_ADDRESS:
+            case QUERY_REPLIED_NAME:
+            case QUERY_ERRORED:
+                async_execute(dns->async, q->probe);
+                break;
             case QUERY_CANCELED:
-                action_1_perf(q->probe);
-                return;
+                destroy_query(q);
+                break;
             default:
-                ;
+                assert(false);
         }
+        e = next;
     }
 }
 
@@ -481,6 +493,7 @@ fsadns_t *fsadns_make_resolver(async_t *async, unsigned max_parallel,
         FSTRACE(FSADNS_CREATE_STARTED, dns->uid, (int) dns->child, dns->conn);
         json_conn_register_callback(dns->conn,
                                     (action_1) { dns, (act_1) dns_probe });
+        async_execute(dns->async, (action_1) { dns, (act_1) dns_probe });
         dns->query_map = make_hash_table(10000, query_hash, query_cmp);
         dns->queries = make_list();
         return dns;
@@ -623,34 +636,6 @@ fsadns_query_t *fsadns_resolve(fsadns_t *dns,
     return query;
 }
 
-FSTRACE_DECL(FSADNS_PROPAGATE_ERROR, "UID=%64u ERRNO=%E");
-
-static int propagate_error(fsadns_query_t *query, int error)
-{
-    FSTRACE(FSADNS_PROPAGATE_ERROR, query->uid, error);
-    fsadns_t *dns = query->dns;
-    list_elem_t *e;
-    for (e = list_get_first(dns->queries); e; e = list_next(e)) {
-        fsadns_query_t *q = (fsadns_query_t *) list_elem_get_value(e);
-        switch (q->state) {
-            case QUERY_REQUESTED_ADDRESS:
-            case QUERY_REQUESTED_NAME:
-                if (q != query) {
-                    set_query_state(q, QUERY_ERRORED);
-                    q->error.err = EAI_SYSTEM;
-                    q->error.err_no = error;
-                    async_execute(dns->async, query->probe);
-                }
-                break;
-            default:
-                ;
-        }
-    }
-    destroy_query(query);
-    errno = dns->error = error;
-    return EAI_SYSTEM;
-}
-
 FSTRACE_DECL(FSADNS_DECODE_ERROR, "UID=%64u LINE=%L");
 
 static bool get_response_reqid(fsadns_t *dns, json_thing_t *response,
@@ -756,131 +741,109 @@ static bool parse_name_failure(fsadns_t *dns, json_thing_t *response,
     return true;
 }
 
-FSTRACE_DECL(FSADNS_QUERY_CONFUSED, "UID=%64u OTHER=%64u");
-FSTRACE_DECL(FSADNS_RELAY_ADDRESS_RESPONSE, "UID=%64u OTHER=%64u");
-FSTRACE_DECL(FSADNS_RELAY_NAME_RESPONSE, "UID=%64u OTHER=%64u");
-FSTRACE_DECL(FSADNS_CLEAR_CANCELED, "UID=%64u OTHER=%64u");
+FSTRACE_DECL(FSADNS_UNEXPECTED_REQID, "UID=%64u REQID=%64u");
+FSTRACE_DECL(FSADNS_RELAY_ADDRESS_RESPONSE, "UID=%64u REQID=%64u");
+FSTRACE_DECL(FSADNS_RELAY_NAME_RESPONSE, "UID=%64u REQID=%64u");
+FSTRACE_DECL(FSADNS_CLEAR_CANCELED, "UID=%64u REQID=%64u");
+FSTRACE_DECL(FSADNS_QUERY_CONFUSED, "UID=%64u");
 
-static bool relay_response(fsadns_query_t *query, json_thing_t *response,
+static bool relay_response(fsadns_t *dns, json_thing_t *response,
                            uint64_t reqid)
 {
-    fsadns_t *dns = query->dns;
     hash_elem_t *e = hash_table_get(dns->query_map, &reqid);
     if (!e) {
-        FSTRACE(FSADNS_QUERY_CONFUSED, query->uid, query->uid);
+        FSTRACE(FSADNS_UNEXPECTED_REQID, dns->uid, reqid);
         return false;
     }
-    fsadns_query_t *other = (fsadns_query_t *) hash_elem_get_value(e);
-    switch (other->state) {
+    fsadns_query_t *query = (fsadns_query_t *) hash_elem_get_value(e);
+    switch (query->state) {
         case QUERY_REQUESTED_ADDRESS:
-            FSTRACE(FSADNS_RELAY_ADDRESS_RESPONSE, query->uid, other->uid);
+            FSTRACE(FSADNS_RELAY_ADDRESS_RESPONSE, dns->uid, query->uid);
             {
                 struct addrinfo *info;
                 if (parse_address_response(dns, response, &info)) {
-                    set_query_state(other, QUERY_REPLIED_ADDRESS);
-                    other->address.info = info;
-                    async_execute(dns->async, other->probe);
+                    set_query_state(query, QUERY_REPLIED_ADDRESS);
+                    query->address.info = info;
+                    async_execute(dns->async, query->probe);
                     return true;
                 }
                 int err, err_no;
                 if (parse_address_failure(dns, response, &err, &err_no)) {
-                    set_query_state(other, QUERY_ERRORED);
-                    other->error.err = err;
-                    other->error.err_no = err_no;
-                    async_execute(dns->async, other->probe);
+                    set_query_state(query, QUERY_ERRORED);
+                    query->error.err = err;
+                    query->error.err_no = err_no;
+                    async_execute(dns->async, query->probe);
                     return true;
                 }
             }
             FSTRACE(FSADNS_DECODE_ERROR, dns->uid);
             return false;
         case QUERY_REQUESTED_NAME:
-            FSTRACE(FSADNS_RELAY_NAME_RESPONSE, query->uid, other->uid);
+            FSTRACE(FSADNS_RELAY_NAME_RESPONSE, dns->uid, query->uid);
             {
                 char *host, *serv;
                 if (parse_name_response(dns, response, &host, &serv)) {
-                    set_query_state(other, QUERY_REPLIED_NAME);
-                    other->name.host = host;
-                    other->name.serv = serv;
-                    async_execute(dns->async, other->probe);
+                    set_query_state(query, QUERY_REPLIED_NAME);
+                    query->name.host = host;
+                    query->name.serv = serv;
+                    async_execute(dns->async, query->probe);
                     return true;
                 }
                 int err, err_no;
                 if (parse_name_failure(dns, response, &err, &err_no)) {
-                    set_query_state(other, QUERY_ERRORED);
-                    other->error.err = err;
-                    other->error.err_no = err_no;
-                    async_execute(dns->async, other->probe);
+                    set_query_state(query, QUERY_ERRORED);
+                    query->error.err = err;
+                    query->error.err_no = err_no;
+                    async_execute(dns->async, query->probe);
                     return true;
                 }
             }
             FSTRACE(FSADNS_DECODE_ERROR, dns->uid);
             return false;
         case QUERY_CANCELED:
-            FSTRACE(FSADNS_CLEAR_CANCELED, query->uid, other->uid);
+            FSTRACE(FSADNS_CLEAR_CANCELED, dns->uid, query->uid);
             destroy_query(query);
             return true;
         default:
-            FSTRACE(FSADNS_QUERY_CONFUSED, query->uid, other->uid);
+            FSTRACE(FSADNS_QUERY_CONFUSED, query->uid);
             return false;
     }
 }
 
-FSTRACE_DECL(FSADNS_CHECK_ADDRESS_QUERY_RESPONSE, "UID=%64u");
-FSTRACE_DECL(FSADNS_CHECK_ADDRESS_QUERY_FAIL, "UID=%64u ERRNO=%e");
-FSTRACE_DECL(FSADNS_CHECK_ADDRESS_QUERY_PDU, "UID=%64u PDU=%I");
-FSTRACE_DECL(FSADNS_ADDRESS_QUERY_MATCH, "UID=%64u");
+FSTRACE_DECL(FSADNS_DNS_PROBE_POSTHUMOUS, "UID=%64u");
+FSTRACE_DECL(FSADNS_DNS_PROBE, "UID=%64u");
+FSTRACE_DECL(FSADNS_DNS_PROBE_RECV_FAIL, "UID=%64u ERRNO=%e");
+FSTRACE_DECL(FSADNS_DNS_PROBE_RECV, "UID=%64u PDU=%I");
 
-static int check_address_query_response(fsadns_query_t *query,
-                                        struct addrinfo **res)
+static void dns_probe(fsadns_t *dns)
 {
-    FSTRACE(FSADNS_CHECK_ADDRESS_QUERY_RESPONSE, query->uid);
-    fsadns_t *dns = query->dns;
+    if (!dns->async) {
+        FSTRACE(FSADNS_DNS_PROBE_POSTHUMOUS, dns->uid);
+        return;
+    }
+    FSTRACE(FSADNS_DNS_PROBE, dns->uid);
     for (;;) {
         json_thing_t *response = json_conn_receive(dns->conn);
         if (!response) {
-            FSTRACE(FSADNS_CHECK_ADDRESS_QUERY_FAIL, query->uid);
+            FSTRACE(FSADNS_DNS_PROBE_RECV_FAIL, dns->uid);
             switch (errno) {
                 case 0:
-                    return propagate_error(query, EPROTO);
+                    mark_protocol_error(dns, EPROTO);
+                    return;
                 case EAGAIN:
-                    return EAI_SYSTEM;
+                    return;
                 default:
-                    return propagate_error(query, errno);
+                    mark_protocol_error(dns, errno);
+                    return;
             }
         }
-        FSTRACE(FSADNS_CHECK_ADDRESS_QUERY_PDU,
-                query->uid, json_trace, response);
+        FSTRACE(FSADNS_DNS_PROBE_RECV, dns->uid, json_trace, response);
         uint64_t reqid;
-        if (!get_response_reqid(dns, response, &reqid)) {
+        if (!get_response_reqid(dns, response, &reqid) ||
+            !relay_response(dns, response, reqid)) {
             json_destroy_thing(response);
-            return propagate_error(query, EPROTO);
-        }
-        if (reqid == query->uid) {
-            FSTRACE(FSADNS_ADDRESS_QUERY_MATCH, query->uid);
-            if (parse_address_response(dns, response, res)) {
-                json_destroy_thing(response);
-                destroy_query(query);
-                async_execute(dns->async,
-                              (action_1) { dns, (act_1) dns_probe });
-                return 0;
-            }
-            int err, err_no;
-            if (parse_address_failure(dns, response, &err, &err_no)) {
-                json_destroy_thing(response);
-                destroy_query(query);
-                async_execute(dns->async,
-                              (action_1) { dns, (act_1) dns_probe });
-                if (err_no >= 0)
-                    errno = err_no;
-                return err;
-            }
-            FSTRACE(FSADNS_DECODE_ERROR, dns->uid);
-            json_destroy_thing(response);
-            return propagate_error(query, EPROTO);
-        }
-        if (!relay_response(query, response, reqid)) {
-            json_destroy_thing(response);
-            return propagate_error(query, EPROTO);
+            mark_protocol_error(dns, EPROTO);
+            return;
         }
         json_destroy_thing(response);
     }
@@ -895,14 +858,14 @@ int fsadns_check(fsadns_query_t *query, struct addrinfo **res)
     fsadns_t *dns = query->dns;
     switch (query->state) {
         case QUERY_REQUESTED_ADDRESS:
-            return check_address_query_response(query, res);
+            errno = EAGAIN;
+            return EAI_SYSTEM;
         case QUERY_REPLIED_ADDRESS:
             FSTRACE(FSADNS_ADDRESS_QUERY_REPLIED,
                     query->uid, query->address.info);
             *res = query->address.info;
             set_query_state(query, QUERY_CONSUMED);
             destroy_query(query);
-            async_execute(dns->async, (action_1) { dns, (act_1) dns_probe });
             return 0;
         case QUERY_ERRORED:
             FSTRACE(FSADNS_ADDRESS_QUERY_ERRORED, query->uid, dns->error);
@@ -1010,69 +973,6 @@ static void move_name(char *name, socklen_t len, char *field)
     fsfree(field);
 }
 
-FSTRACE_DECL(FSADNS_CHECK_NAME_QUERY_RESPONSE, "UID=%64u");
-FSTRACE_DECL(FSADNS_CHECK_NAME_QUERY_FAIL, "UID=%64u ERRNO=%e");
-FSTRACE_DECL(FSADNS_CHECK_NAME_QUERY_PDU, "UID=%64u PDU=%I");
-FSTRACE_DECL(FSADNS_NAME_QUERY_MATCH, "UID=%64u");
-
-static int check_name_query_response(fsadns_query_t *query,
-                                     char *host, socklen_t hostlen,
-                                     char *serv, socklen_t servlen)
-{
-    FSTRACE(FSADNS_CHECK_NAME_QUERY_RESPONSE, query->uid);
-    fsadns_t *dns = query->dns;
-    for (;;) {
-        json_thing_t *response = json_conn_receive(dns->conn);
-        if (!response) {
-            FSTRACE(FSADNS_CHECK_NAME_QUERY_FAIL, query->uid);
-            switch (errno) {
-                case 0:
-                    return propagate_error(query, EPROTO);
-                case EAGAIN:
-                    return EAI_SYSTEM;
-                default:
-                    return propagate_error(query, errno);
-            }
-        }
-        FSTRACE(FSADNS_CHECK_NAME_QUERY_PDU, query->uid, json_trace, response);
-        uint64_t reqid;
-        if (!get_response_reqid(dns, response, &reqid)) {
-            json_destroy_thing(response);
-            return propagate_error(query, EPROTO);
-        }
-        if (reqid == query->uid) {
-            FSTRACE(FSADNS_NAME_QUERY_MATCH, query->uid);
-            char *host_field, *serv_field;
-            if (parse_name_response(dns, response, &host_field, &serv_field)) {
-                json_destroy_thing(response);
-                destroy_query(query);
-                move_name(host, hostlen, host_field);
-                move_name(serv, servlen, serv_field);
-                async_execute(dns->async, (action_1) { dns, (act_1) dns_probe });
-                return 0;
-            }
-            int err, err_no;
-            if (parse_name_failure(dns, response, &err, &err_no)) {
-                json_destroy_thing(response);
-                destroy_query(query);
-                async_execute(dns->async,
-                              (action_1) { dns, (act_1) dns_probe });
-                if (err_no >= 0)
-                    errno = err_no;
-                return err;
-            }
-            FSTRACE(FSADNS_DECODE_ERROR, dns->uid);
-            json_destroy_thing(response);
-            return propagate_error(query, EPROTO);
-        }
-        if (!relay_response(query, response, reqid)) {
-            json_destroy_thing(response);
-            return propagate_error(query, EPROTO);
-        }
-        json_destroy_thing(response);
-    }
-}
-
 FSTRACE_DECL(FSADNS_NAME_QUERY_REPLIED, "UID=%64u HOST=%s SERV=%s");
 FSTRACE_DECL(FSADNS_NAME_QUERY_ERRORED, "UID=%64u ERRNO=%E");
 FSTRACE_DECL(FSADNS_POSTHUMOUS_NAME_CHECK, "UID=%64u");
@@ -1084,8 +984,8 @@ int fsadns_check_name(fsadns_query_t *query,
     fsadns_t *dns = query->dns;
     switch (query->state) {
         case QUERY_REQUESTED_NAME:
-            return check_name_query_response(query,
-                                             host, hostlen, serv, servlen);
+            errno = EAGAIN;
+            return EAI_SYSTEM;
         case QUERY_REPLIED_NAME:
             FSTRACE(FSADNS_NAME_QUERY_REPLIED, query->uid, query->name.host,
                     query->name.serv);
@@ -1093,7 +993,6 @@ int fsadns_check_name(fsadns_query_t *query,
             move_name(serv, servlen, query->name.serv);
             set_query_state(query, QUERY_CONSUMED);
             destroy_query(query);
-            async_execute(dns->async, (action_1) { dns, (act_1) dns_probe });
             return 0;
         case QUERY_ERRORED:
             FSTRACE(FSADNS_NAME_QUERY_ERRORED, query->uid, dns->error);
