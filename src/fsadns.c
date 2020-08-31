@@ -3,7 +3,6 @@
 #include <netdb.h>
 #include <sys/wait.h>
 #include <signal.h>
-#include <string.h>
 #include <errno.h>
 #include <pthread.h>
 #include <assert.h>
@@ -964,22 +963,13 @@ fsadns_query_t *fsadns_resolve_name(fsadns_t *dns,
     return query;
 }
 
-static void move_name(char *name, socklen_t len, char *field)
-{
-    if (name && len > 0) {
-        strncpy(name, field, len);
-        name[len - 1] = '\0';
-    }
-    fsfree(field);
-}
-
 FSTRACE_DECL(FSADNS_NAME_QUERY_REPLIED, "UID=%64u HOST=%s SERV=%s");
 FSTRACE_DECL(FSADNS_NAME_QUERY_ERRORED, "UID=%64u ERRNO=%E");
 FSTRACE_DECL(FSADNS_POSTHUMOUS_NAME_CHECK, "UID=%64u");
 
 int fsadns_check_name(fsadns_query_t *query,
-                      char *host, socklen_t hostlen,
-                      char *serv, socklen_t servlen)
+                      char **host,
+                      char **serv)
 {
     fsadns_t *dns = query->dns;
     switch (query->state) {
@@ -989,8 +979,8 @@ int fsadns_check_name(fsadns_query_t *query,
         case QUERY_REPLIED_NAME:
             FSTRACE(FSADNS_NAME_QUERY_REPLIED, query->uid, query->name.host,
                     query->name.serv);
-            move_name(host, hostlen, query->name.host);
-            move_name(serv, servlen, query->name.serv);
+            *host = query->name.host;
+            *serv = query->name.serv;
             set_query_state(query, QUERY_CONSUMED);
             destroy_query(query);
             return 0;
