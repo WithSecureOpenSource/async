@@ -66,10 +66,11 @@ fsadns_query_t *fsadns_resolve_name(fsadns_t *dns,
 
 /* Collect the name resolution result. See getnameinfo(3) for the
  * return values. In particular, EAI_SYSTEM with errno == EAGAIN is
- * returned when the result is not available yet. */
-int fsadns_check_name(fsadns_query_t *query,
-                      char *host, socklen_t hostlen,
-                      char *serv, socklen_t servlen);
+ * returned when the result is not available yet.
+ *
+ * The returned strings must be deallocated using fsfree().
+ */
+int fsadns_check_name(fsadns_query_t *query, char **host, char **serv);
 
 #ifdef __cplusplus
 }

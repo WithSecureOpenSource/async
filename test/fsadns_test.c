@@ -258,9 +258,9 @@ static void make_query(global_t *g, const char *hostname)
 
 static void probe_name_query(name_query_t *query)
 {
-    char host[200], serv[200];
-    int err = fsadns_check_name(query->fq,
-                                host, sizeof host, serv, sizeof serv);
+    char *host;
+    char *serv;
+    int err = fsadns_check_name(query->fq, &host, &serv);
     switch (err) {
         case 0:
             break;
@@ -280,6 +280,8 @@ static void probe_name_query(name_query_t *query)
         printf("Done!\n");
         async_quit_loop(query->g->async);
     }
+    fsfree(host);
+    fsfree(serv);
     fsfree(query);
 }
 
