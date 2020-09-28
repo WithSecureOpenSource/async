@@ -47,22 +47,22 @@ void tcp_get_statistics_1(tcp_conn_t *conn, tcp_statistics_1 *stats);
 void tcp_close(tcp_conn_t *conn);
 
 /* Close one or both directions of the communication. The values for
- * 'how' are a bitwise "or" of SHUT_RD and SHUT_WR (see shutdown(2)).
+ * 'how' are SHUT_RD, SHUT_WR or SHUT_RDWR (see shutdown(2)).
  *
- * If SHUT_WR is specified and the output stream is still open, an
- * immediate close is performed as though an EOF had been read from
- * the output stream.
+ * If SHUT_WR or SHUT_RDWR is specified and the output stream is still
+ * open, an immediate close is performed as though an EOF had been
+ * read from the output stream.
  *
- * If SHUT_RD is specified and the input stream is still open, an
- * immediate close is performed. Note that if the input stream is bound
- * to another byte stream, it will eventually close the input stream
- * redundantly.
+ * If SHUT_RD or SHUT_RDWR is specified and the input stream is still
+ * open, an immediate close is performed. Note that if the input
+ * stream is bound to another byte stream, it will eventually close
+ * the input stream redundantly.
  *
- * Note that calling tcp_shut_down(SHUT_WR | SHUT_RD) is not
- * the same as calling tcp_close(conn). Even after both communication
- * directions are shut down, the connection object itself needs to be
- * released with tcp_close(). On the other hand, tcp_close() does make
- * sure both communication directions are shut down.
+ * Note that calling tcp_shut_down(SHUT_RDWR) is not the same as
+ * calling tcp_close(conn). Even after both communication directions
+ * are shut down, the connection object itself needs to be released
+ * with tcp_close(). On the other hand, tcp_close() does make sure
+ * both communication directions are shut down.
  *
  * Calling tcp_shut_down() is not considered part of typical usage.
  * Instead closing the input stream or delivering an EOF to the output

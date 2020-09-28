@@ -268,13 +268,15 @@ void tcp_shut_down(tcp_conn_t *conn, int how, int *perror)
     }
     FSTRACE(ASYNC_TCP_SHUT_DOWN, conn->uid, how);
     *perror = 0;
-    if (how & SHUT_RD && conn->input.state != SHUT_DOWN) {
+    if ((how == SHUT_RD || how == SHUT_RDWR) &&
+        conn->input.state != SHUT_DOWN) {
         FSTRACE(ASYNC_TCP_SHUT_DOWN_READ, conn->uid);
         (void) shutdown(conn->fd, SHUT_RD);
         set_input_state(conn, SHUT_DOWN);
         conn->input.error = ENOTCONN;
     }
-    if (how & SHUT_WR && conn->output.state != SHUT_DOWN) {
+    if ((how == SHUT_WR || how == SHUT_RDWR) &&
+        conn->output.state != SHUT_DOWN) {
         FSTRACE(ASYNC_TCP_SHUT_DOWN_WRITE, conn->uid);
         (void) shutdown(conn->fd, SHUT_WR);
         switch (conn->output.state) {
@@ -344,7 +346,7 @@ void tcp_close(tcp_conn_t *conn)
     }
     destroy_list(conn->output.ancillary_data);
     int dummy;
-    tcp_shut_down(conn, SHUT_RD | SHUT_WR, &dummy);
+    tcp_shut_down(conn, SHUT_RDWR, &dummy);
     async_unregister(conn->async, conn->fd);
     close(conn->fd);
     conn->connection_closed = true;
