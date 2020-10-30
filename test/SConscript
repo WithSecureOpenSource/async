@@ -54,6 +54,7 @@ env.Program(
         'asynctest-framers.c',
         'asynctest-iconvstream.c',
         'asynctest-json.c',
+        'asynctest-jsonserver.c',
         'asynctest-multipart.c',
         'asynctest-nicestream.c',
         'asynctest-old-school.c',

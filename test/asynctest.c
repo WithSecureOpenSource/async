@@ -24,6 +24,7 @@
 #include "asynctest-queuestream.h"
 #include "asynctest-framers.h"
 #include "asynctest-json.h"
+#include "asynctest-jsonserver.h"
 #include "asynctest-multipart.h"
 #include "asynctest-subprocess.h"
 #include "asynctest-alock.h"
@@ -185,6 +186,7 @@ static const testcase_t testcases[] = {
     TESTCASE(test_naiveframer),
     TESTCASE(test_jsonyield),
     TESTCASE(test_jsondecoder),
+    TESTCASE(test_jsonserver),
     TESTCASE(test_multipart),
     TESTCASE(test_concatstream),
     TESTCASE(test_tcp_connection),
