@@ -130,6 +130,7 @@ static void conn_close(conn_t *conn)
 {
     conn_set_state(conn, CONN_ZOMBIE);
     list_remove(conn->server->connections, conn->loc);
+    queuestream_release(conn->output_stream);
     jsonyield_close(conn->input_stream);
     tcp_close(conn->tcp_conn);
     async_wound(conn->server->async, conn);
@@ -147,7 +148,6 @@ static void conn_output_closed(conn_t *conn)
             return;
     }
     FSTRACE(ASYNC_JSONSERVER_CONN_OUTPUT_CLOSED, conn->uid);
-    conn->output_stream = NULL;
     if (conn->reference_count == 0)
         conn_close(conn);
 }
@@ -164,7 +164,7 @@ static void open_connection(jsonserver_t *server, tcp_conn_t *tcp_conn)
     conn->reference_count = 0;
     conn->loc = list_append(server->connections, conn);
     conn->tcp_conn = tcp_conn;
-    conn->output_stream = make_queuestream(server->async);
+    conn->output_stream = make_relaxed_queuestream(server->async);
     bytestream_1 stream = queuestream_as_bytestream_1(conn->output_stream);
     action_1 farewell_cb = { conn, (act_1) conn_output_closed };
     farewellstream_t *fws =
@@ -284,7 +284,7 @@ void jsonreq_respond(jsonreq_t *request, json_thing_t *body)
     conn_t *conn = request->conn;
     assert(conn->state == CONN_OPEN);
     jsonreq_destroy(request);
-    if (conn->output_stream) {
+    if (!queuestream_closed(conn->output_stream)) {
         FSTRACE(ASYNC_JSONREQ_RESPOND, conn->uid,
                 request, json_trace, body);
         bytestream_1 payload =
