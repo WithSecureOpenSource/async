@@ -116,6 +116,11 @@ static void *test_realloc(void *ptr, size_t size)
     return obj;
 }
 
+static void test_reallocator_counter(int count)
+{
+    outstanding_object_count += count;
+}
+
 int posttest_check(int tentative_verdict)
 {
     if (tentative_verdict != PASS)
@@ -228,6 +233,7 @@ int main(int argc, const char *const *argv)
         bad_usage();
     reallocator = fs_get_reallocator();
     fs_set_reallocator(test_realloc);
+    fs_set_reallocator_counter(test_reallocator_counter);
     for (i = 0; i < sizeof(testcases) / sizeof(testcases[0]); i++)
         if (!regexec(&include_re, testcases[i].name, 0, NULL, 0))
             verify(testcases[i].name, testcases[i].testcase);
