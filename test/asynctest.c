@@ -36,6 +36,7 @@
 #include "asynctest-pausestream.h"
 #include "asynctest-base64encoder.h"
 #include "asynctest-iconvstream.h"
+#include "asynctest-fsadns.h"
 
 static void do_quit(tester_base_t *tester)
 {
@@ -203,11 +204,19 @@ static const testcase_t testcases[] = {
     TESTCASE(test_iconvstream),
     TESTCASE(test_subprocess),
     TESTCASE(test_alock),
+    TESTCASE(test_fsadns),
 };
+
+static fstrace_t *trace;
+
+void reinit_trace(void)
+{
+    fstrace_reopen(trace);
+}
 
 int main(int argc, const char *const *argv)
 {
-    fstrace_t *trace = fstrace_direct(stderr);
+    trace = fstrace_direct(stderr);
     fstrace_declare_globals(trace);
 
     const char *include = ".";
