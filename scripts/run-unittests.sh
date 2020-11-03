@@ -48,7 +48,6 @@ run-tests () {
         ${SCONS:-scons} builddir=test &&
     stage/$arch/test/test/fstracecheck &&
     stage/$arch/test/test/asynctest &&
-    stage/$arch/test/test/fsadns_test &&
     test-coverage $arch
 }
 

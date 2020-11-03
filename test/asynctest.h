@@ -17,6 +17,8 @@ typedef struct {
 void init_test(tester_base_t *tester, async_t *async, int max_duration);
 void quit_test(tester_base_t *tester);
 
+void reinit_trace(void);
+
 void tlog(const char *format, ...)
     __attribute__((format(printf, 1, 2)));
 int posttest_check(int tentative_verdict);

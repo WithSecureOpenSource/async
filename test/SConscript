@@ -52,6 +52,7 @@ env.Program(
         'asynctest-drystream.c',
         'asynctest-emptystream.c',
         'asynctest-framers.c',
+        'asynctest-fsadns.c',
         'asynctest-iconvstream.c',
         'asynctest-json.c',
         'asynctest-jsonserver.c',
@@ -71,9 +72,6 @@ env.Program(
         'asynctest.c',
     ],
 )
-
-env.Program('fsadns_test',
-            [ 'fsadns_test.c' ])
 
 env.Program('timerperf',
             [ 'timerperf.c' ])
