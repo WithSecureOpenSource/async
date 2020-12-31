@@ -21,6 +21,7 @@ void reinit_trace(void);
 
 void tlog(const char *format, ...)
     __attribute__((format(printf, 1, 2)));
+void tlog_string(const char *str);
 int posttest_check(int tentative_verdict);
 
 #endif

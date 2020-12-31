@@ -185,7 +185,7 @@ static void dump_query_result(const char *hostname, const struct addrinfo *res)
             dump_address(res);
         if (res->ai_flags & AI_CANONNAME)
             tlog("  canonname = \"%s\"", res->ai_canonname);
-        tlog("");
+        tlog_string("");
     }
 }
 
@@ -197,7 +197,7 @@ static void dump_query_failure(const char *hostname, int err)
         tlog("%s failed to resolve; error = %s",
              hostname,
              gai_strerror(err));
-    tlog("");
+    tlog_string("");
 }
 
 static void probe_query(query_t *query)
@@ -267,7 +267,7 @@ static void probe_name_query(query_t *query)
             return;
     }
     tlog("%s resolved; host = %s, serv = %s", query->address, host, serv);
-    tlog("");
+    tlog_string("");
     list_remove(query->g->queries, query->loc);
     if (list_empty(query->g->queries)) {
         quit_test(&query->g->base);
