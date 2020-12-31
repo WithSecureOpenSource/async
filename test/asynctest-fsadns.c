@@ -349,9 +349,9 @@ VERDICT test_fsadns(void)
             return EXIT_FAILURE;
         }
     fsadns_destroy_resolver(g.dns);
-    destroy_list(g.queries);
     async_flush(async, async_now(async) + 5 * ASYNC_S);
     destroy_async(async);
     g.base.verdict = list_empty(g.queries) ? PASS : FAIL;
+    destroy_list(g.queries);
     return posttest_check(g.base.verdict);
 }
