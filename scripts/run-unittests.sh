@@ -43,7 +43,7 @@ run-tests () {
     echo &&
     rm -rf stage/$arch/test/gcov &&
     mkdir -p stage/$arch/test/gcov &&
-    FSCCFLAGS="-fprofile-arcs -ftest-coverage -O0" \
+    FSCCFLAGS="$FSCCFLAGS -fprofile-arcs -ftest-coverage -O0" \
     FSLINKFLAGS="-fprofile-arcs" \
         ${SCONS:-scons} builddir=test &&
     stage/$arch/test/test/fstracecheck &&
