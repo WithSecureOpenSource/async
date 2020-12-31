@@ -93,6 +93,13 @@ void tlog(const char *format, ...)
     fputc('\n', stderr);
 }
 
+void tlog_string(const char *str)
+{
+    timestamp();
+    fputs(str, stderr);
+    fputc('\n', stderr);
+}
+
 static int outstanding_object_count = 0;
 static int log_allocation = 0;  /* set in debugger */
 
