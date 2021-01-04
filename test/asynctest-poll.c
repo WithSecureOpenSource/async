@@ -4,7 +4,6 @@
 #include <errno.h>
 #include <sys/un.h>
 #include <sys/socket.h>
-#include <pthread.h>
 #include <async/async.h>
 #include "asynctest-poll.h"
 
@@ -103,69 +102,6 @@ VERDICT test_async_register(void)
     close(context.sd[0]);
     close(context.sd[1]);
     destroy_async(async);
-    return posttest_check(context.base.verdict);
-}
-
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-typedef struct {
-    tester_base_t base;
-    int counter;
-} mt_tester_t;
-
-enum { MT_COUNT = 5 };
-
-static void mt_timeout(mt_tester_t *context)
-{
-    if (++context->counter == MT_COUNT)
-        context->base.verdict = PASS;
-}
-
-static void *aux_thread(void *arg)
-{
-    mt_tester_t *context = arg;
-    int i;
-    for (i = 0; i < MT_COUNT; i++) {
-        pthread_mutex_lock(&mutex);
-        async_timer_start(context->base.async,
-                          async_now(context->base.async) + ASYNC_S,
-                          (action_1) { context, (act_1) mt_timeout });
-        pthread_mutex_unlock(&mutex);
-        sleep(1);
-    }
-    return NULL;
-}
-
-static void lock(void *ptr)
-{
-    pthread_mutex_t *mutex = ptr;
-    pthread_mutex_lock(mutex);
-}
-
-static void unlock(void *ptr)
-{
-    pthread_mutex_t *mutex = ptr;
-    pthread_mutex_unlock(mutex);
-}
-
-VERDICT test_async_loop_protected(void)
-{
-    pthread_t thread;
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    async_t *async = make_async();
-    mt_tester_t context = {};
-    init_test(&context.base, async, MT_COUNT + 2);
-    pthread_create(&thread, &attr, aux_thread, &context);
-    pthread_mutex_lock(&mutex);
-    if (async_loop_protected(async,
-                             lock,
-                             unlock,
-                             &mutex) < 0)
-        tlog("Unexpected error from async_loop_protected: %d", errno);
-    pthread_mutex_unlock(&mutex);
-    destroy_async(async);
-    pthread_join(thread, NULL);
     return posttest_check(context.base.verdict);
 }
 

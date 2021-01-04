@@ -37,6 +37,7 @@
 #include "asynctest-base64encoder.h"
 #include "asynctest-iconvstream.h"
 #include "asynctest-fsadns.h"
+#include "asynctest-loop-protected.h"
 
 static void do_quit(tester_base_t *tester)
 {
