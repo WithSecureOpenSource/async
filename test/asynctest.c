@@ -182,7 +182,6 @@ static const testcase_t testcases[] = {
     TESTCASE(test_async_timer_start),
     TESTCASE(test_async_timer_cancel),
     TESTCASE(test_async_register),
-    TESTCASE(test_async_loop_protected),
     TESTCASE(test_async_poll),
     TESTCASE(test_async_old_school),
     TESTCASE(test_zerostream),
@@ -213,6 +212,10 @@ static const testcase_t testcases[] = {
     TESTCASE(test_subprocess),
     TESTCASE(test_alock),
     TESTCASE(test_fsadns),
+};
+
+static const testcase_t mt_testcases[] = {
+    TESTCASE(test_async_loop_protected),
 };
 
 static fstrace_t *trace;
@@ -254,6 +257,9 @@ int main(int argc, const char *const *argv)
     for (i = 0; i < sizeof(testcases) / sizeof(testcases[0]); i++)
         if (!regexec(&include_re, testcases[i].name, 0, NULL, 0))
             verify(testcases[i].name, testcases[i].testcase);
+    for (i = 0; i < sizeof(mt_testcases) / sizeof(mt_testcases[0]); i++)
+        if (!regexec(&include_re, mt_testcases[i].name, 0, NULL, 0))
+            verify(mt_testcases[i].name, mt_testcases[i].testcase);
     fstrace_close(trace);
     regfree(&include_re);
     return failures;
