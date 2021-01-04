@@ -5,7 +5,6 @@
 #include <errno.h>
 #include <sys/un.h>
 #include <sys/socket.h>
-#include <pthread.h>
 #include <async/async.h>
 #include "asynctest-old-school.h"
 
