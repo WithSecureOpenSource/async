@@ -10,7 +10,7 @@ struct base64decoder {
     bytestream_1 stream;
     char pos62, pos63;
     size_t bit_count;
-    int bits;
+    unsigned bits;
 };
 
 static int8_t BASE64MAP[256] = {

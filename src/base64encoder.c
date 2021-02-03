@@ -17,7 +17,7 @@ struct base64encoder {
     char pos62, pos63, padchar;
     bool pad;
     size_t bit_count;
-    int bits;
+    unsigned bits;
 };
 
 static char BASE64MAP[62] =
