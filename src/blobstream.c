@@ -29,7 +29,8 @@ ssize_t blobstream_read(blobstream_t *blobstr, void *buf, size_t count)
     ssize_t n = blobstream_remaining(blobstr);
     if (n > count)
         n = count;
-    memcpy(buf, blobstr->blob + blobstr->cursor, n);
+    if (n > 0)
+        memcpy(buf, blobstr->blob + blobstr->cursor, n);
     FSTRACE(ASYNC_BLOBSTREAM_READ, blobstr->uid, count, n);
     FSTRACE(ASYNC_BLOBSTREAM_READ_DUMP, blobstr->uid, buf, n);
     blobstr->cursor += n;
