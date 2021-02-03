@@ -20,7 +20,7 @@ typedef struct {
 struct bytestream_2_vt {
     /* The read method works analogously to the read(2) system call.
      * In particular, a negative value is returned and errno is set in
-     * error situations.. The method should never block. The method
+     * error situations. The method should never block. The method
      * must not be called after the close method has been called. */
     ssize_t (*read)(void *obj, void *buf, size_t count);
 
