@@ -1,29 +1,23 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <sys/wait.h>
-#include <signal.h>
 #include <errno.h>
-#include <pthread.h>
 #include <assert.h>
-#include <unixkit/unixkit.h>
 #include <fsdyn/fsalloc.h>
 #include <fsdyn/charstr.h>
 #include <fsdyn/base64.h>
 #include <fsdyn/list.h>
 #include <fsdyn/hashtable.h>
 #include <fstrace.h>
-#include "json_connection.h"
 #include "fsadns.h"
+#include "jsonthreader.h"
 #include "async_version.h"
 
 struct fsadns {
     async_t *async;
     uint64_t uid;
     int error;                  /* if non-0, the error is fatal */
-    unsigned max_parallel;
-    pid_t child;
-    json_conn_t *conn;
+    jsonthreader_t *threader;
     hash_table_t *query_map;
     list_t *queries;
 };
@@ -73,15 +67,6 @@ static int query_cmp(const void *key1, const void *key2)
         return 1;
     return 0;
 }
-
-typedef struct {
-    fsadns_t *dns;
-    async_t *async;             /* for the slave process */
-    json_conn_t *conn;
-    pthread_mutex_t lock;
-    pthread_cond_t cond;
-    unsigned ready, quota_remaining; /* sync'ed with acct_lock */
-} shared_t;
 
 static void construct_resolve_address_fail(json_thing_t *resp,
                                            int err, int syserr)
@@ -177,7 +162,7 @@ FSTRACE_DECL(FSADNS_SERVE_GETADDRINFO, "UID=%64u PID=%P TID=%T");
 FSTRACE_DECL(FSADNS_SERVE_GETADDRINFO_FAIL,
              "UID=%64u PID=%P TID=%T ERR=%I ERRNO=%e");
 
-static json_thing_t *resolve_address(shared_t *shared, json_thing_t *reqid,
+static json_thing_t *resolve_address(fsadns_t *dns, json_thing_t *reqid,
                                      json_thing_t *fields)
 {
     struct addrinfo hints = { .ai_flags = 0 }, *phints, *res;
@@ -198,14 +183,14 @@ static json_thing_t *resolve_address(shared_t *shared, json_thing_t *reqid,
     if (json_object_get_string(fields, "service", &s))
         service = charstr_url_decode(s, true, NULL);
     else service = NULL;
-    FSTRACE(FSADNS_SERVE_GETADDRINFO_START, shared->dns->uid);
+    FSTRACE(FSADNS_SERVE_GETADDRINFO_START, dns->uid);
     int err = getaddrinfo(node, service, phints, &res);
     if (err) {
-        FSTRACE(FSADNS_SERVE_GETADDRINFO_FAIL, shared->dns->uid,
+        FSTRACE(FSADNS_SERVE_GETADDRINFO_FAIL, dns->uid,
                 trace_getaddrinfo_error, &err);
         construct_resolve_address_fail(response, err, errno);
     } else {
-        FSTRACE(FSADNS_SERVE_GETADDRINFO, shared->dns->uid);
+        FSTRACE(FSADNS_SERVE_GETADDRINFO, dns->uid);
         construct_resolve_address_resp(response, res);
         freeaddrinfo(res);
     }
@@ -242,7 +227,7 @@ FSTRACE_DECL(FSADNS_SERVE_GETNAMEINFO,
 FSTRACE_DECL(FSADNS_SERVE_GETNAMEINFO_FAIL,
              "UID=%64u PID=%P TID=%T ERR=%I ERRNO=%e");
 
-static json_thing_t *resolve_name(shared_t *shared, json_thing_t *reqid,
+static json_thing_t *resolve_name(fsadns_t *dns, json_thing_t *reqid,
                                   json_thing_t *fields)
 {
     const char *addr_base64;
@@ -257,16 +242,16 @@ static json_thing_t *resolve_name(shared_t *shared, json_thing_t *reqid,
     if (reqid)
         json_add_to_object(response, "reqid", json_clone(reqid));
     char host[2000], serv[2000];
-    FSTRACE(FSADNS_SERVE_GETNAMEINFO_START, shared->dns->uid);
+    FSTRACE(FSADNS_SERVE_GETNAMEINFO_START, dns->uid);
     int err = getnameinfo(addr, addrlen, host, sizeof host, serv, sizeof serv,
                           (int) flags);
     fsfree(addr);
     if (err) {
-        FSTRACE(FSADNS_SERVE_GETNAMEINFO_FAIL, shared->dns->uid,
+        FSTRACE(FSADNS_SERVE_GETNAMEINFO_FAIL, dns->uid,
                 trace_getaddrinfo_error, &err);
         construct_resolve_name_fail(response, err, errno);
     } else {
-        FSTRACE(FSADNS_SERVE_GETNAMEINFO, shared->dns->uid, host, serv);
+        FSTRACE(FSADNS_SERVE_GETNAMEINFO, dns->uid, host, serv);
         construct_resolve_name_resp(response, host, serv);
     }
     return response;
@@ -275,145 +260,19 @@ static json_thing_t *resolve_name(shared_t *shared, json_thing_t *reqid,
 FSTRACE_DECL(FSADNS_SERVE_RESOLVE, "UID=%64u PID=%P TID=%T PDU=%I");
 FSTRACE_DECL(FSADNS_SERVE_RESOLVE_CONFUSED, "UID=%64u PID=%P TID=%T");
 
-static json_thing_t *resolve(shared_t *shared, json_thing_t *request)
+static json_thing_t *resolve(void *obj, json_thing_t *request)
 {
-    FSTRACE(FSADNS_SERVE_RESOLVE, shared->dns->uid, json_trace, request);
+    fsadns_t *dns = obj;
+    FSTRACE(FSADNS_SERVE_RESOLVE, dns->uid, json_trace, request);
     assert(json_thing_type(request) == JSON_OBJECT);
     json_thing_t *reqid = json_object_get(request, "reqid");
     json_thing_t *fields;
     if (json_object_get_object(request, "resolve_address_req", &fields))
-        return resolve_address(shared, reqid, fields);
+        return resolve_address(dns, reqid, fields);
     if (json_object_get_object(request, "resolve_name_req", &fields))
-        return resolve_name(shared, reqid, fields);
-    FSTRACE(FSADNS_SERVE_RESOLVE_CONFUSED, shared->dns->uid);
+        return resolve_name(dns, reqid, fields);
+    FSTRACE(FSADNS_SERVE_RESOLVE_CONFUSED, dns->uid);
     assert(false);
-}
-
-static void lock(shared_t *shared)
-{
-    pthread_mutex_lock(&shared->lock);
-}
-
-static void notify(shared_t *shared)
-{
-    pthread_cond_signal(&shared->cond);
-}
-
-static void await_notification(shared_t *shared)
-{
-    pthread_cond_wait(&shared->cond, &shared->lock);
-}
-
-static void unlock(shared_t *shared)
-{
-    pthread_mutex_unlock(&shared->lock);
-}
-
-FSTRACE_DECL(FSADNS_SERVE_FATAL_ERROR, "UID=%64u PID=%P TID=%T");
-
-static void fatal()
-{
-    _exit(1);
-}
-
-static void serve_requests(shared_t *shared);
-
-FSTRACE_DECL(FSADNS_SERVE_NOTIFY, "UID=%64u PID=%P TID=%T");
-FSTRACE_DECL(FSADNS_SERVE_BUSY, "UID=%64u PID=%P TID=%T");
-FSTRACE_DECL(FSADNS_SERVE_PTHREAD_CREATE_FAIL,
-             "UID=%64u PID=%P TID=%T ERRNO=%E");
-FSTRACE_DECL(FSADNS_SERVE_PTHREAD_CREATE,
-             "UID=%64u PID=%P TID=%T READY=%u QUOTA=%u");
-
-static void probe_server(shared_t *shared)
-{
-    if (shared->ready) {
-        notify(shared);
-        FSTRACE(FSADNS_SERVE_NOTIFY, shared->dns->uid);
-        return;
-    }
-    if (!shared->quota_remaining) {
-        FSTRACE(FSADNS_SERVE_NOTIFY, shared->dns->uid);
-        return;
-    }
-    pthread_t t;
-    int err = pthread_create(&t, NULL, (void *) serve_requests, shared);
-    if (err)
-        FSTRACE(FSADNS_SERVE_PTHREAD_CREATE_FAIL, shared->dns->uid, err);
-    else {
-        shared->ready++;
-        shared->quota_remaining--;
-        FSTRACE(FSADNS_SERVE_PTHREAD_CREATE, shared->dns->uid, shared->ready,
-                shared->quota_remaining);
-    }
-}
-
-FSTRACE_DECL(FSADNS_SERVE_REQUESTS, "UID=%64u PID=%P TID=%T");
-FSTRACE_DECL(FSADNS_SERVE_REQUESTS_LOCKED, "UID=%64u PID=%P TID=%T");
-FSTRACE_DECL(FSADNS_SERVE_REQUESTS_AWAIT, "UID=%64u PID=%P TID=%T");
-FSTRACE_DECL(FSADNS_SERVE_REQUESTS_NOTIFIED, "UID=%64u PID=%P TID=%T");
-FSTRACE_DECL(FSADNS_SERVE_REQUESTS_FAIL, "UID=%64u PID=%P TID=%T ERRNO=%e");
-
-static void serve_requests(shared_t *shared)
-{
-    fsadns_t *dns = shared->dns;
-    FSTRACE(FSADNS_SERVE_REQUESTS, dns->uid);
-    lock(shared);
-    FSTRACE(FSADNS_SERVE_REQUESTS_LOCKED, dns->uid);
-    for (;;) {
-        json_thing_t *request = json_conn_receive(shared->conn);
-        if (request) {
-            shared->ready--;
-            probe_server(shared);
-            unlock(shared);
-            json_thing_t *response = resolve(shared, request);
-            lock(shared);
-            json_conn_send(shared->conn, response);
-            json_destroy_thing(request);
-            json_destroy_thing(response);
-            shared->ready++;
-        } else if (errno == EAGAIN) {
-            FSTRACE(FSADNS_SERVE_REQUESTS_AWAIT, dns->uid);
-            await_notification(shared);
-            FSTRACE(FSADNS_SERVE_REQUESTS_NOTIFIED, dns->uid);
-        }
-        else {
-            FSTRACE(FSADNS_SERVE_REQUESTS_FAIL, dns->uid);
-            fatal();
-        }
-    }
-}
-
-FSTRACE_DECL(FSADNS_SERVING, "UID=%64u PID=%P");
-FSTRACE_DECL(FSADNS_SERVING_ASYNC_FAIL, "UID=%64u PID=%P ERRNO=%e");
-
-static void serve(int fd, fsadns_t *dns)
-{
-    FSTRACE(FSADNS_SERVING, dns->uid);
-    async_t *async = make_async();
-    shared_t shared = {
-        .dns = dns,
-        .async = async,
-        .conn = open_json_conn(async, tcp_adopt_connection(async, fd),
-                               100000),
-        .lock = PTHREAD_MUTEX_INITIALIZER,
-        .cond = PTHREAD_COND_INITIALIZER,
-        .ready = 0,
-        .quota_remaining = dns->max_parallel,
-    };
-    action_1 probe_cb = { &shared, (act_1) probe_server };
-    json_conn_register_callback(shared.conn, probe_cb);
-    lock(&shared);
-    probe_server(&shared);
-    for (;;) {
-        int status =
-            async_loop_protected(async, (void *) lock, (void *) unlock,
-                                 &shared);
-        if (status >= 0 || errno != EINTR) {
-            FSTRACE(FSADNS_SERVING_ASYNC_FAIL, dns->uid);
-            fatal();
-        }
-    }
 }
 
 static void dns_probe(fsadns_t *dns);
@@ -448,10 +307,8 @@ static void mark_protocol_error(fsadns_t *dns, int error)
 }
 
 FSTRACE_DECL(FSADNS_CREATE, "UID=%64u PTR=%p ASYNC=%p MAX-PAR=%u");
-FSTRACE_DECL(FSADNS_CREATE_SOCKETPAIR_FAIL, "UID=%64u ERRNO=%e");
-FSTRACE_DECL(FSADNS_CREATE_FORK_FAIL, "UID=%64u ERRNO=%e");
-FSTRACE_DECL(FSADNS_CREATE_STARTED, "UID=%64u CHILD-PID=%d JSON-CONN=%p");
-FSTRACE_DECL(FSADNS_CHILD_EXIT, "UID=%64u PID=%P");
+FSTRACE_DECL(FSADNS_CREATE_JSONTHREADER_FAIL, "UID=%64u ERRNO=%e");
+FSTRACE_DECL(FSADNS_CREATE_STARTED, "UID=%64u THREADER=%p");
 
 fsadns_t *fsadns_make_resolver(async_t *async, unsigned max_parallel,
                                action_1 post_fork_cb)
@@ -461,47 +318,29 @@ fsadns_t *fsadns_make_resolver(async_t *async, unsigned max_parallel,
     FSTRACE(FSADNS_CREATE, dns->uid, dns, async, max_parallel);
     dns->error = 0;
     dns->async = async;
-    assert(max_parallel >= 1);
-    dns->max_parallel = max_parallel;
-    int fd[2];
-    int status = socketpair(AF_UNIX, SOCK_STREAM, 0, fd);
-    if (status < 0) {
-        FSTRACE(FSADNS_CREATE_SOCKETPAIR_FAIL, dns->uid);
-        fsfree(dns);
-        return NULL;
-    }
     list_t *fds_to_keep = make_list();
     list_append(fds_to_keep, as_integer(0));
     list_append(fds_to_keep, as_integer(1));
     list_append(fds_to_keep, as_integer(2));
-    list_append(fds_to_keep, as_integer(fd[1]));
-    dns->child = unixkit_fork(fds_to_keep);
-    if (dns->child < 0) {
-        FSTRACE(FSADNS_CREATE_FORK_FAIL, dns->uid);
-        close(fd[0]);
-        close(fd[1]);
+    dns->threader = make_jsonthreader(async,
+                                      fds_to_keep,
+                                      post_fork_cb,
+                                      resolve,
+                                      dns,
+                                      100000,
+                                      max_parallel);
+    if (!dns->threader) {
+        FSTRACE(FSADNS_CREATE_JSONTHREADER_FAIL, dns->uid);
         fsfree(dns);
         return NULL;
     }
-    if (dns->child > 0) {
-        /* parent */
-        close(fd[1]);
-        dns->conn = open_json_conn(dns->async,
-                                   tcp_adopt_connection(dns->async, fd[0]),
-                                                        100000);
-        FSTRACE(FSADNS_CREATE_STARTED, dns->uid, (int) dns->child, dns->conn);
-        json_conn_register_callback(dns->conn,
-                                    (action_1) { dns, (act_1) dns_probe });
-        async_execute(dns->async, (action_1) { dns, (act_1) dns_probe });
-        dns->query_map = make_hash_table(10000, query_hash, query_cmp);
-        dns->queries = make_list();
-        return dns;
-    }
-    /* child */
-    action_1_perf(post_fork_cb);
-    serve(fd[1], dns);
-    FSTRACE(FSADNS_CHILD_EXIT, dns->uid);
-    _exit(0);
+    FSTRACE(FSADNS_CREATE_STARTED, dns->uid, dns->threader);
+    jsonthreader_register_callback(dns->threader,
+                                   (action_1) { dns, (act_1) dns_probe });
+    async_execute(dns->async, (action_1) { dns, (act_1) dns_probe });
+    dns->query_map = make_hash_table(10000, query_hash, query_cmp);
+    dns->queries = make_list();
+    return dns;
 }
 
 static const char *trace_state(void *pstate)
@@ -561,8 +400,6 @@ static void destroy_query(fsadns_query_t *query)
 }
 
 FSTRACE_DECL(FSADNS_DESTROY, "UID=%64u");
-FSTRACE_DECL(FSADNS_DESTROY_WAIT_FAIL, "UID=%64u ERRNO=%e");
-FSTRACE_DECL(FSADNS_DESTROY_CHILD_DEAD, "UID=%64u");
 
 void fsadns_destroy_resolver(fsadns_t *dns)
 {
@@ -574,11 +411,8 @@ void fsadns_destroy_resolver(fsadns_t *dns)
     }
     destroy_list(dns->queries);
     destroy_hash_table(dns->query_map);
-    kill(dns->child, SIGTERM);
-    if (waitpid(dns->child, NULL, 0) < 0)
-        FSTRACE(FSADNS_DESTROY_WAIT_FAIL, dns->uid);
-    else FSTRACE(FSADNS_DESTROY_CHILD_DEAD, dns->uid);
-    json_conn_close(dns->conn);
+    jsonthreader_terminate(dns->threader);
+    destroy_jsonthreader(dns->threader);
     async_wound(dns->async, dns);
     dns->async = NULL;
 }
@@ -630,7 +464,7 @@ fsadns_query_t *fsadns_resolve(fsadns_t *dns,
                 hints->ai_flags & AI_CANONNAME ? hints->ai_canonname : NULL);
         json_add_to_object(fields, "hints", construct_addrinfo(hints));
     } else FSTRACE(FSADNS_ADDRESS_QUERY_NO_HINTS, query->uid);
-    json_conn_send(dns->conn, request);
+    jsonthreader_send(dns->threader, request);
     json_destroy_thing(request);
     return query;
 }
@@ -822,7 +656,7 @@ static void dns_probe(fsadns_t *dns)
     }
     FSTRACE(FSADNS_DNS_PROBE, dns->uid);
     for (;;) {
-        json_thing_t *response = json_conn_receive(dns->conn);
+        json_thing_t *response = jsonthreader_receive(dns->threader);
         if (!response) {
             FSTRACE(FSADNS_DNS_PROBE_RECV_FAIL, dns->uid);
             switch (errno) {
@@ -958,7 +792,7 @@ fsadns_query_t *fsadns_resolve_name(fsadns_t *dns,
     char *base64_encoded = base64_encode_simple(addr, addrlen);
     json_add_to_object(fields, "addr", json_adopt_string(base64_encoded));
     json_add_to_object(fields, "flags", json_make_integer(flags));
-    json_conn_send(dns->conn, request);
+    jsonthreader_send(dns->threader, request);
     json_destroy_thing(request);
     return query;
 }
