@@ -160,11 +160,6 @@ static void verify(const char *name, VERDICT (*testcase)(void))
     tlog("End %s", name);
 }
 
-static int enable_all(void *data, const char *id)
-{
-    return 1;
-}
-
 static void bad_usage()
 {
     fprintf(stderr, "Usage: asynctest [ --test-include PATTERN ] [ --trace ]\n");
@@ -231,6 +226,8 @@ int main(int argc, const char *const *argv)
     fstrace_declare_globals(trace);
 
     const char *include = ".";
+    const char *trace_include = NULL;
+    const char *trace_exclude = NULL;
     int i = 1;
     while (i < argc && argv[i][0] == '-') {
         if (!strcmp(argv[i], "--test-include")) {
@@ -239,13 +236,23 @@ int main(int argc, const char *const *argv)
             include = argv[i++];
             continue;
         }
-        if (!strcmp(argv[i], "--trace")) {
-            fstrace_select(trace, enable_all, NULL);
-            i++;
+        if (!strcmp(argv[i], "--trace-include")) {
+            if (++i >= argc)
+                bad_usage();
+            trace_include = argv[i++];
+            continue;
+        }
+        if (!strcmp(argv[i], "--trace-exclude")) {
+            if (++i >= argc)
+                bad_usage();
+            trace_exclude = argv[i++];
             continue;
         }
         bad_usage();
     }
+
+    if (!fstrace_select_regex(trace, trace_include, trace_exclude))
+        bad_usage();
 
     regex_t include_re;
     int status = regcomp(&include_re, include, REG_EXTENDED | REG_NOSUB);
