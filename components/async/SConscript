@@ -29,6 +29,7 @@ include = env.Install(
         '#include/jsondecoder.h',
         '#include/jsonencoder.h',
         '#include/jsonserver.h',
+        '#include/jsonthreader.h',
         '#include/jsonyield.h',
         '#include/multipartdecoder.h',
         '#include/multipartdeserializer.h',
