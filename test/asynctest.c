@@ -162,7 +162,12 @@ static void verify(const char *name, VERDICT (*testcase)(void))
 
 static void bad_usage()
 {
-    fprintf(stderr, "Usage: asynctest [ --test-include PATTERN ] [ --trace ]\n");
+    fprintf(stderr, "Usage: asynctest [ <options> ]\n"
+            "\n"
+            "Options:\n"
+            "    --test-include <regex>\n"
+            "    --trace-include <regex>\n"
+            "    --trace-exclude <regex>\n");
     exit(EXIT_FAILURE);
 }
 
