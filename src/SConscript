@@ -40,6 +40,7 @@ env.StaticLibrary(
         'jsondecoder.c',
         'jsonencoder.c',
         'jsonserver.c',
+        'jsonthreader.c',
         'jsonyield.c',
         'multipartdecoder.c',
         'multipartdeserializer.c',
