@@ -212,7 +212,7 @@ jsonthreader_t *make_jsonthreader(async_t *async,
                                   unsigned max_parallel)
 {
     int pairfd[2];
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, pairfd) < 0)
+    if (!unixkit_socketpair(AF_UNIX, SOCK_STREAM, 0, pairfd))
         return NULL;
     list_append(keep_fds, as_integer(pairfd[0]));
     pid_t child_pid = unixkit_fork(keep_fds);
