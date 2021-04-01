@@ -20,6 +20,7 @@
 #include <fsdyn/avltree.h>
 #include <fsdyn/list.h>
 #include <fstrace.h>
+#include <unixkit/unixkit.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <execinfo.h>
@@ -646,19 +647,12 @@ static void drain(int fd)
 }
 
 FSTRACE_DECL(ASYNC_LOOP_PROTECTED_PIPE_FAIL, "UID=%64u ERRNO=%e");
-FSTRACE_DECL(ASYNC_LOOP_PROTECTED_CLOEXEC_FAIL, "UID=%64u ERRNO=%e");
 FSTRACE_DECL(ASYNC_LOOP_PROTECTED, "UID=%64u WAKEUP-RDFD=%d WAKEUP-WRFD=%d");
 
 static bool prepare_protected_loop(async_t *async, int pipefds[2])
 {
-    if (pipe(pipefds) < 0) {
+    if (!unixkit_pipe(pipefds)) {
         FSTRACE(ASYNC_LOOP_PROTECTED_PIPE_FAIL, async->uid);
-        return false;
-    }
-    if (cloexec(pipefds[0]) < 0 || cloexec(pipefds[1]) < 0) {
-        FSTRACE(ASYNC_LOOP_PROTECTED_CLOEXEC_FAIL, async->uid);
-        close(pipefds[0]);
-        close(pipefds[1]);
         return false;
     }
     FSTRACE(ASYNC_LOOP_PROTECTED, async->uid, pipefds[0], pipefds[1]);

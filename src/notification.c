@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <fstrace.h>
 #include <fsdyn/fsalloc.h>
+#include <unixkit/unixkit.h>
 #include "notification.h"
 #include "async_version.h"
 
@@ -45,7 +46,7 @@ FSTRACE_DECL(ASYNC_NOTIFICATION_CREATE,
 notification_t *make_notification(async_t *async, action_1 action)
 {
     int fd[2];
-    if (pipe(fd) < 0) {
+    if (!unixkit_pipe(fd)) {
         FSTRACE(ASYNC_NOTIFICATION_CREATE_FAIL, async);
         return NULL;
     }
