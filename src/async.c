@@ -532,7 +532,11 @@ int async_flush(async_t *async, uint64_t expires)
         }
     }
     FSTRACE(ASYNC_FLUSH_EXPIRED, async->uid);
+#ifdef ETIME
     errno = ETIME;
+#else
+    errno = ETIMEDOUT;
+#endif
     return -1;
 }
 
