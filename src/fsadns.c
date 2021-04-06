@@ -144,6 +144,10 @@ static const char *trace_getaddrinfo_error(void *perror)
             return "EAI_MEMORY";
         case EAI_OVERFLOW:
             return "EAI_MEMORY";
+#ifdef EAI_NODATA
+        case EAI_NODATA:
+            return "EAI_NODATA";
+#endif
         case EAI_NONAME:
             return "EAI_NONAME";
         case EAI_SERVICE:
