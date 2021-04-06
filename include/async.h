@@ -202,10 +202,13 @@ int async_loop_protected(async_t *async,
 void async_quit_loop(async_t *async);
 
 /*
- * Loop until all immediately pending events have been processed or the
- * specified expiry time has been reached. Return a negative number if
- * flushing couldn't complete in the given time (ETIME) or some other
- * error occurred.
+ * Loop until all immediately pending events have been processed or
+ * the specified expiry time has been reached.
+ *
+ * A negative return value indicates an error (consult errno).
+ *
+ * if flushing couldn't complete in the given time, errno is set to
+ * ETIME, if defined, and to ETIMEDOUT otherwise.
  */
 int async_flush(async_t *async, uint64_t expires);
 
