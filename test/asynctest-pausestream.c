@@ -79,7 +79,7 @@ VERDICT test_pausestream(void)
 
     limit = -1;
     errno = 0;
-    count = pausestream_read(pausestr, buffer, 1000000000);
+    count = pausestream_read(pausestr, buffer, st.st_size);
     if (count != (st.st_size - 5 - 10) || errno != 0) {
         tlog("Unexpected result %d, errno %d from pausestream_read "
              "(expected %d, 0)",

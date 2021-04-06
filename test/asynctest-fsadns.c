@@ -6,6 +6,7 @@
 #include <fsdyn/list.h>
 
 #include <errno.h>
+#include <netinet/in.h>
 #include <string.h>
 
 typedef struct {
@@ -115,18 +116,22 @@ static void dump_protocol(int protocol)
         case IPPROTO_AH:
             tlog("  protocol = AH");
             break;
+#ifdef IPPROTO_MTP
         case IPPROTO_MTP:
             tlog("  protocol = MTP");
             break;
+#endif
         case IPPROTO_ENCAP:
             tlog("  protocol = ENCAP");
             break;
         case IPPROTO_PIM:
             tlog("  protocol = PIM");
             break;
+#ifdef IPPROTO_SCTP
         case IPPROTO_SCTP:
             tlog("  protocol = SCTP");
             break;
+#endif
         default:
             tlog("  protocol = %d", protocol);
     }
@@ -142,8 +147,10 @@ static void dump_query_result(const char *hostname, const struct addrinfo *res)
             tlog("  flags = 0x%x", res->ai_flags);
             if (res->ai_flags & AI_ADDRCONFIG)
                 tlog("    AI_ADDRCONFIG");
+#ifdef AI_ALL
             if (res->ai_flags & AI_ALL)
                 tlog("    AI_ALL");
+#endif
             if (res->ai_flags & AI_CANONNAME)
                 tlog("    AI_CANONNAME");
             if (res->ai_flags & AI_NUMERICHOST)
@@ -152,8 +159,10 @@ static void dump_query_result(const char *hostname, const struct addrinfo *res)
                 tlog("    AI_NUMERICSERV");
             if (res->ai_flags & AI_PASSIVE)
                 tlog("    AI_PASSIVE");
+#ifdef AI_V4MAPPED
             if (res->ai_flags & AI_V4MAPPED)
                 tlog("    AI_V4MAPPED");
+#endif
         }
         switch (res->ai_family) {
             case AF_INET:

@@ -23,7 +23,9 @@
 #include <unixkit/unixkit.h>
 #include <errno.h>
 #include <stdbool.h>
+#ifdef HAVE_EXECINFO
 #include <execinfo.h>
+#endif
 #include <assert.h>
 #include "async.h"
 #include "async_imp.h"
@@ -205,10 +207,13 @@ static async_timer_t *new_timer(async_t *async, bool immediate,
     timer->seqno = fstrace_get_unique_id();
     timer->immediate = immediate;
     timer->action = action;
+    timer->stack_trace = NULL;
+#ifdef HAVE_EXECINFO
     if (FSTRACE_ENABLED(ASYNC_TIMER_BT)) {
         timer->stack_trace = fscalloc(BT_DEPTH, sizeof(void *));
         backtrace(timer->stack_trace, BT_DEPTH);
-    } else timer->stack_trace = NULL;
+    }
+#endif
     return timer;
 }
 

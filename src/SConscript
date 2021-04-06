@@ -7,7 +7,7 @@ env.Command('async_version.c', [],
 
 env['CCFLAGS'] += ' -fPIC'      # make objects usable for shared libs
 
-env['CPPPATH'] = [
+env['CPPPATH'] += [
     '#include',
 ]
 

@@ -10,24 +10,56 @@ def target_architectures():
     if archs:
         return archs.split(',')
 
+    arch_map = {
+        ('Darwin', 'arm64'): ['darwin'],
+        ('Darwin', 'x86_64'): ['darwin'],
+        ('FreeBSD', 'amd64'): ['freebsd_amd64'],
+        ('Linux', 'i686'): ['linux32'],
+        ('Linux', 'x86_64'): ['linux64'],
+        ('OpenBSD', 'amd64'): ['openbsd_amd64'],
+    }
+
     uname_os, _, _, _, uname_cpu = os.uname()
-    if uname_os == 'Linux':
-        if uname_cpu == 'x86_64':
-            return ['linux64']
-        assert uname_cpu == 'i686'
-        return ['linux32']
-    assert uname_os == 'Darwin'
-    return ['darwin']
+    assert (uname_os, uname_cpu) in arch_map
+    return arch_map[(uname_os, uname_cpu)]
 
 TARGET_DEFINES = {
-    'linux32': ['_FILE_OFFSET_BITS=64'],
+    'freebsd_amd64': ['HAVE_EXECINFO'],
+    'linux32': ['_FILE_OFFSET_BITS=64', 'HAVE_EXECINFO'],
+    'linux64': ['HAVE_EXECINFO'],
+    'openbsd_amd64': [],
+    'darwin': ['HAVE_EXECINFO']
+}
+
+TARGET_CPPPATH = {
+    'freebsd_amd64': [],
+    'linux32': [],
     'linux64': [],
+    'openbsd_amd64': ['/usr/local/include'],
     'darwin': []
 }
 
+TARGET_LIBPATH = {
+    'freebsd_amd64': [],
+    'linux32': [],
+    'linux64': [],
+    'openbsd_amd64': ['/usr/local/lib'],
+    'darwin': []
+}
+
+TARGET_LIBS = {
+    'freebsd_amd64': ['execinfo'],
+    'linux32': ['rt'],
+    'linux64': ['rt'],
+    'openbsd_amd64': ['iconv'],
+    'darwin': ['iconv'],
+}
+
 TARGET_FLAGS = {
+    'freebsd_amd64': '',
     'linux32': '-m32 ',
     'linux64': '',
+    'openbsd_amd64': '',
     'darwin': ''
 }
 
@@ -40,8 +72,14 @@ def libconfig_parser():
 def pkgconfig_builder(env):
     pkgconfig = env.Substfile(
         'lib/pkgconfig/async.pc',
-        '#async-%s.pc.in' % env['ARCH'],
-        SUBST_DICT={'@prefix@': env['PREFIX']},
+        '#async.pc.in',
+        SUBST_DICT={
+            '@prefix@': env['PREFIX'],
+            '@libs_private@': ' '.join(
+                ['-L{}'.format(path) for path in TARGET_LIBPATH[env['ARCH']]]
+                + ['-l{}'.format(lib) for lib in TARGET_LIBS[env['ARCH']]]
+            ),
+        },
     )
     env.Alias(
         'install',
@@ -68,6 +106,7 @@ def construct():
         '-Wno-null-pointer-arithmetic '
         '-Wno-sign-compare '
         '-Wno-unknown-warning-option '
+        '-Wno-unused-label '
         '-Wno-unused-parameter '
     ) + os.getenv('FSCCFLAGS', '')
     linkflags = os.getenv('FSLINKFLAGS', '')
@@ -93,6 +132,9 @@ def construct():
 
         target_ccflags = TARGET_FLAGS[target_arch] + ccflags
         target_cppdefines = TARGET_DEFINES[target_arch]
+        target_cpppath = TARGET_CPPPATH[target_arch]
+        target_libpath = TARGET_LIBPATH[target_arch]
+        target_libs = TARGET_LIBS[target_arch]
         target_linkflags = TARGET_FLAGS[target_arch] + linkflags
         build_dir = os.path.join('stage',
                                  target_arch,
@@ -101,11 +143,14 @@ def construct():
             env = Environment(ARCH=target_arch,
                               CCFLAGS=target_ccflags,
                               CPPDEFINES=target_cppdefines,
+                              CPPPATH=target_cpppath,
                               LINKFLAGS=target_linkflags,
                               CONFIG_BUILDER=config_builder,
                               CONFIG_PARSER=config_parser,
                               FSTRACECHECK=fstracecheck,
                               PREFIX=prefix,
+                              TARGET_LIBPATH=target_libpath,
+                              TARGET_LIBS=target_libs,
                               tools=['default', 'textfile'])
             env['ARCHBUILDDIR'] = env.Dir('#stage/$ARCH/build').abspath
             if ar_override:

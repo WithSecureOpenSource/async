@@ -62,7 +62,7 @@ VERDICT test_iconvstream(void)
                                       500000, 10, 200);
     iconvstream_t *icstr =
         open_iconvstream(async, pacerstream_as_bytestream_1(pstr),
-                         "LATIN-9", "UTF-8");
+                         "ISO-8859-15", "UTF-8");
     assert(icstr);
     tester_t tester = {
         .output = iconvstream_as_bytestream_1(icstr),
