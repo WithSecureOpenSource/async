@@ -33,7 +33,7 @@ static void verify_lock_nofile(tester_t *tester)
         quit_test(&tester->base);
         return;
     }
-    tester->lock_fd = open(tester->lock_path, O_CREAT | O_TRUNC, 0644);
+    tester->lock_fd = open(tester->lock_path, O_CREAT | O_TRUNC | O_WRONLY, 0644);
     if (tester->lock_fd < 0) {
         tlog("Failed to open lock file (errno %d)", errno);
         quit_test(&tester->base);

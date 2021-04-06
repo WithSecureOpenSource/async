@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <sys/un.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <async/async.h>
 #include "asynctest-poll.h"

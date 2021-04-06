@@ -1,29 +1,32 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 main () {
     cd "$(dirname "$(realpath "$0")")/.."
-    local os=$(uname -s)
     if [ -n "$FSARCHS" ]; then
         local archs=()
         IFS=, read -ra archs <<< "$FSARCHS"
         for arch in "${archs[@]}" ; do
             run-tests "$arch"
         done
-    elif [ "$os" = Linux ]; then
-        local cpu=$(uname -m)
-        if [ "$cpu" = x86_64 ]; then
-            run-tests linux64
-        elif [ "$cpu" = i686 ]; then
-            run-tests linux32
-        else
-            echo "$0: Unknown CPU: $cpu" >&2
-            exit 1
-        fi
-    elif [ "$os" = Darwin ]; then
-        run-tests darwin
     else
-        echo "$0: Unknown OS architecture: $os" >&2
-        exit 1
+        local os=$(uname -m -s)
+        case $os in
+            "Darwin arm64")
+                run-tests darwin;;
+            "Darwin x86_64")
+                run-tests darwin;;
+            "FreeBSD amd64")
+                run-tests freebsd_amd64;;
+            "Linux i686")
+                run-tests linux32;;
+            "Linux x86_64")
+                run-tests linux64;;
+            "OpenBSD amd64")
+                run-tests openbsd_amd64;;
+            *)
+                echo "$0: Unknown OS architecture: $os" >&2
+                exit 1
+        esac
     fi
 }
 
@@ -41,6 +44,11 @@ run-tests () {
     echo &&
     echo Start Tests on $arch &&
     echo &&
+    if [ "$arch" = openbsd_amd64 ]; then
+        stage/$arch/build/test/fstracecheck &&
+        stage/$arch/build/test/asynctest
+        return
+    fi
     rm -rf stage/$arch/test/gcov &&
     mkdir -p stage/$arch/test/gcov &&
     FSCCFLAGS="$FSCCFLAGS -fprofile-arcs -ftest-coverage -O0" \

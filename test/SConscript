@@ -1,24 +1,18 @@
 Import('env')
 
-if env['ARCH'] in [ 'linux32', 'linux64' ]:
-    extralib = [ 'rt' ]
-else:
-    extralib = [ 'iconv' ]
-
 env['CCFLAGS'] += ' -O0'
 
-env['CPPPATH'] = [
+env['CPPPATH'] += [
     '../components/async/include'
 ]
 
 env['LIBPATH'] = [
     '../src',
-]
+] + env['TARGET_LIBPATH']
 
 env['LIBS'] = [
     'async',
-    extralib
-]
+] + env['TARGET_LIBS']
 
 env.ParseConfig(env['CONFIG_PARSER'])
 
@@ -26,6 +20,7 @@ env.Substfile('fstracecheck.in',
               '#fstracecheck.in',
               SUBST_DICT = {
                   '@CC@': '$CC',
+                  '@CPPFLAGS@':  '$_CPPDEFFLAGS' + '$_CPPINCFLAGS',
                   '@CONFIG_PARSER@': '$CONFIG_PARSER',
                   '@FSTRACECHECK@': '$FSTRACECHECK',
               }
