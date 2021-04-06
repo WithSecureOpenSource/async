@@ -470,7 +470,7 @@ static void replenish_outbuf(tcp_conn_t *conn)
     conn->outcount = count;
 }
 
-#ifdef SO_NOSIGPIPE
+#ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
 #endif
 #ifndef CMSG_ALIGN
