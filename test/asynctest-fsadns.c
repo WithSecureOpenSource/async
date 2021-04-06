@@ -218,6 +218,9 @@ static void probe_query(query_t *query)
             dump_query_failure(query->address, errno);
             quit_test(&query->g->base);
             return;
+#ifdef EAI_NODATA
+        case EAI_NODATA:
+#endif
         case EAI_NONAME:
             dump_query_failure(query->address, err);
             break;
