@@ -17,8 +17,8 @@ struct subprocess {
     async_t *async;
     uint64_t uid;
     pid_t pid;
-    bytestream_1 stdout;
-    bytestream_1 stderr;
+    bytestream_1 stdout_stream;
+    bytestream_1 stderr_stream;
 };
 
 FSTRACE_DECL(ASYNC_SUBPROCESS_CREATE, "UID=%64u PTR=%p ASYNC=%p PID=%64u");
@@ -75,18 +75,18 @@ subprocess_t *open_subprocess(async_t *async,
     subprocess->async = async;
     subprocess->uid = fstrace_get_unique_id();
     subprocess->pid = pid;
-    subprocess->stdout = drystream;
-    subprocess->stderr = drystream;
+    subprocess->stdout_stream = drystream;
+    subprocess->stderr_stream = drystream;
 
     if (capture_stdout) {
         close(stdout_pipe[1]);
-        subprocess->stdout =
+        subprocess->stdout_stream =
             pipestream_as_bytestream_1(open_pipestream(async, stdout_pipe[0]));
     }
 
     if (capture_stderr) {
         close(stderr_pipe[1]);
-        subprocess->stderr =
+        subprocess->stderr_stream =
             pipestream_as_bytestream_1(open_pipestream(async, stderr_pipe[0]));
     }
 
@@ -114,8 +114,8 @@ FSTRACE_DECL(ASYNC_SUBPROCESS_CLOSE, "UID=%64u");
 void subprocess_close(subprocess_t *subprocess)
 {
     FSTRACE(ASYNC_SUBPROCESS_CLOSE, subprocess->uid);
-    bytestream_1_close(subprocess->stdout);
-    bytestream_1_close(subprocess->stderr);
+    bytestream_1_close(subprocess->stdout_stream);
+    bytestream_1_close(subprocess->stderr_stream);
     fsfree(subprocess);
 }
 
@@ -124,8 +124,8 @@ FSTRACE_DECL(ASYNC_SUBPROCESS_RELEASE_STDOUT, "UID=%64u");
 bytestream_1 subprocess_release_stdout(subprocess_t *subprocess)
 {
     FSTRACE(ASYNC_SUBPROCESS_RELEASE_STDOUT, subprocess->uid);
-    bytestream_1 stream = subprocess->stdout;
-    subprocess->stdout = drystream;
+    bytestream_1 stream = subprocess->stdout_stream;
+    subprocess->stdout_stream = drystream;
     return stream;
 }
 
@@ -134,8 +134,8 @@ FSTRACE_DECL(ASYNC_SUBPROCESS_RELEASE_STDERR, "UID=%64u");
 bytestream_1 subprocess_release_stderr(subprocess_t *subprocess)
 {
     FSTRACE(ASYNC_SUBPROCESS_RELEASE_STDERR, subprocess->uid);
-    bytestream_1 stream = subprocess->stderr;
-    subprocess->stderr = drystream;
+    bytestream_1 stream = subprocess->stderr_stream;
+    subprocess->stderr_stream = drystream;
     return stream;
 }
 
