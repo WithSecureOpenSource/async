@@ -85,8 +85,10 @@ static json_thing_t *construct_addrinfo(const struct addrinfo *ap)
     json_add_to_object(info, "family", json_make_integer(ap->ai_family));
     json_add_to_object(info, "socketype", json_make_integer(ap->ai_socktype));
     json_add_to_object(info, "protocol", json_make_integer(ap->ai_protocol));
-    char *base64_encoded = base64_encode_simple(ap->ai_addr, ap->ai_addrlen);
-    json_add_to_object(info, "addr", json_adopt_string(base64_encoded));
+    if (ap->ai_addr) {
+        char *base64_encoded = base64_encode_simple(ap->ai_addr, ap->ai_addrlen);
+        json_add_to_object(info, "addr", json_adopt_string(base64_encoded));
+    }
     if (ap->ai_flags & AI_CANONNAME) {
         char *url_encoded = charstr_url_encode(ap->ai_canonname);
         json_add_to_object(info, "canonname",
