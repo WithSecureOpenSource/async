@@ -120,6 +120,8 @@ static void serve(void *obj)
         } else {
             FSTRACE(ASYNC_JSONTHREADER_SERVE_FAIL);
             async_quit_loop(bh->async);
+            unlock(bh);
+            return;
         }
     }
 }
