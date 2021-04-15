@@ -5,8 +5,4 @@ flags=(
     -Iinclude
 )
 
-libconfig_flags=$(@CONFIG_PARSER@ |
-    tr ' ' '\n' |
-    grep -v '^-[lL]')
-
-exec @FSTRACECHECK@ @CPPFLAGS@ "${flags[@]}" $libconfig_flags src/*.c
+exec @FSTRACECHECK@ @CPPFLAGS@ "${flags[@]}" src/*.c
