@@ -21,7 +21,6 @@ env.Substfile('fstracecheck.in',
               SUBST_DICT = {
                   '@CC@': '$CC',
                   '@CPPFLAGS@':  '$_CPPDEFFLAGS' + '$_CPPINCFLAGS',
-                  '@CONFIG_PARSER@': '$CONFIG_PARSER',
                   '@FSTRACECHECK@': '$FSTRACECHECK',
               }
 )
