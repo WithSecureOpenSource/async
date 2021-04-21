@@ -18,10 +18,10 @@ env.ParseConfig(env['CONFIG_PARSER'])
 
 env.Substfile('fstracecheck.in',
               '#fstracecheck.in',
-              SUBST_DICT = {
-                  '@CC@': '$CC',
-                  '@CPPFLAGS@':  '$_CPPDEFFLAGS' + '$_CPPINCFLAGS',
-                  '@FSTRACECHECK@': '$FSTRACECHECK',
+              SUBST_DICT={
+                  '@CC@': env['CC'],
+                  '@CPPFLAGS@':  env['_CPPDEFFLAGS'] + env['_CPPINCFLAGS'],
+                  '@FSTRACECHECK@': env['FSTRACECHECK'],
               }
 )
 env.Command('fstracecheck',
