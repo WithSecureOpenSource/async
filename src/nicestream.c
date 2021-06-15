@@ -1,9 +1,12 @@
-#include <errno.h>
-#include <assert.h>
-#include <fstrace.h>
-#include <fsdyn/fsalloc.h>
-#include "async.h"
 #include "nicestream.h"
+
+#include <assert.h>
+#include <errno.h>
+
+#include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
+#include "async.h"
 #include "async_version.h"
 
 struct nicestream {
@@ -40,7 +43,8 @@ ssize_t nicestream_read(nicestream_t *nice, void *buf, size_t count)
     ssize_t n = bytestream_1_read(nice->stream, buf, count);
     if (n < 0)
         nice->this_burst = 0;
-    else nice->this_burst += n;
+    else
+        nice->this_burst += n;
     FSTRACE(ASYNC_NICESTREAM_READ, nice->uid, count, n);
     FSTRACE(ASYNC_NICESTREAM_READ_DUMP, nice->uid, buf, n);
     return n;
@@ -110,8 +114,7 @@ bytestream_1 nicestream_as_bytestream_1(nicestream_t *nice)
 FSTRACE_DECL(ASYNC_NICESTREAM_CREATE,
              "UID=%64u PTR=%p ASYNC=%p STREAM=%p MAX-BURST=%z");
 
-nicestream_t *make_nice(async_t *async,
-                        bytestream_1 stream, size_t max_burst)
+nicestream_t *make_nice(async_t *async, bytestream_1 stream, size_t max_burst)
 {
     nicestream_t *nice = fsalloc(sizeof *nice);
     nice->async = async;

@@ -1,17 +1,20 @@
-#include <sys/types.h>
-#include <sys/socket.h>
+#include "tcp_client.h"
+
+#include <assert.h>
+#include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <string.h>
-#include <errno.h>
-#include <assert.h>
-#include <fstrace.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+
 #include <fsdyn/fsalloc.h>
 #include <fsdyn/list.h>
-#include "drystream.h"
-#include "tcp_client.h"
-#include "fsadns.h"
+#include <fstrace.h>
+
 #include "async_version.h"
+#include "drystream.h"
+#include "fsadns.h"
 
 typedef enum {
     TCP_CLIENT_RESOLVING,  /* performing address resolution */
@@ -26,11 +29,11 @@ struct tcp_client {
     async_t *async;
     uint64_t uid;
     tcp_client_state_t state;
-    unsigned port;              /* TCP_CLIENT_RESOLVING */
-    fsadns_query_t *query;      /* TCP_CLIENT_RESOLVING */
-    list_t *candidates; /* of conn_candidate_t; TCP_CLIENT_CONNECTING */
-    tcp_conn_t *chosen; /* TCP_CLIENT_CONNECTED */
-    action_1 choice_callback;   /* to alert the user */
+    unsigned port;            /* TCP_CLIENT_RESOLVING */
+    fsadns_query_t *query;    /* TCP_CLIENT_RESOLVING */
+    list_t *candidates;       /* of conn_candidate_t; TCP_CLIENT_CONNECTING */
+    tcp_conn_t *chosen;       /* TCP_CLIENT_CONNECTED */
+    action_1 choice_callback; /* to alert the user */
 };
 
 typedef struct {
@@ -87,8 +90,7 @@ static list_t *parse_addrinfo(tcp_client_t *client, const struct addrinfo *res,
             case AF_INET6:
                 list_append(addresses, resolve_ipv6(client, r, port));
                 break;
-            default:
-                ;
+            default:;
         }
     }
     return addresses;
@@ -124,13 +126,13 @@ FSTRACE_DECL(ASYNC_TCP_CLIENT_GETADDRINFO, "UID=%64u HOST=%s PORT=%u");
 FSTRACE_DECL(ASYNC_TCP_CLIENT_GETADDRINFO_FAIL, "UID=%64u ERR=%I ERRNO=%e");
 FSTRACE_DECL(ASYNC_TCP_CLIENT_GETADDRINFO_PARSED, "UID=%64u");
 
-static list_t *resolve_hostname(tcp_client_t *client,
-                                const char *host, unsigned port)
+static list_t *resolve_hostname(tcp_client_t *client, const char *host,
+                                unsigned port)
 {
     struct addrinfo *res;
     const struct addrinfo hint = {
         .ai_socktype = SOCK_STREAM,
-        .ai_protocol = IPPROTO_TCP
+        .ai_protocol = IPPROTO_TCP,
     };
     FSTRACE(ASYNC_TCP_CLIENT_GETADDRINFO, client->uid, host, port);
     int status = getaddrinfo(host, NULL, &hint, &res);
@@ -179,8 +181,8 @@ FSTRACE_DECL(ASYNC_TCP_CLIENT_SET_STATE, "UID=%64u OLD=%I NEW=%I");
 
 static void set_client_state(tcp_client_t *client, tcp_client_state_t state)
 {
-    FSTRACE(ASYNC_TCP_CLIENT_SET_STATE, client->uid,
-            trace_client_state, &client->state, trace_client_state, &state);
+    FSTRACE(ASYNC_TCP_CLIENT_SET_STATE, client->uid, trace_client_state,
+            &client->state, trace_client_state, &state);
     client->state = state;
 }
 
@@ -217,8 +219,7 @@ static void make_choice(conn_candidate_t *candidate)
 {
     tcp_client_t *client = candidate->client;
     if (client->state != TCP_CLIENT_CONNECTING) {
-        FSTRACE(ASYNC_TCP_CLIENT_SPURIOUS_CHOICE,
-                client->uid, candidate->uid);
+        FSTRACE(ASYNC_TCP_CLIENT_SPURIOUS_CHOICE, client->uid, candidate->uid);
         return;
     }
     FSTRACE(ASYNC_TCP_CLIENT_CHOOSE, client->uid, candidate->uid);
@@ -246,13 +247,9 @@ static void candidate_close(void *obj)
     make_choice(candidate);
 }
 
-static void candidate_register_callback(void *obj, action_1 action)
-{
-}
+static void candidate_register_callback(void *obj, action_1 action) {}
 
-static void candidate_unregister_callback(void *obj)
-{
-}
+static void candidate_unregister_callback(void *obj) {}
 
 static struct bytestream_1_vt candidate_vt = {
     .read = candidate_read,
@@ -272,11 +269,11 @@ static void resolved(tcp_client_t *client, list_t *addresses)
     list_elem_t *e;
     for (e = list_get_first(addresses); e; e = list_next(e)) {
         socket_address_t *sa = (socket_address_t *) list_elem_get_value(e);
-        tcp_conn_t *conn = tcp_connect(client->async, NULL,
-                                       sa->address, sa->addrlen);
+        tcp_conn_t *conn =
+            tcp_connect(client->async, NULL, sa->address, sa->addrlen);
         if (!conn) {
-            FSTRACE(ASYNC_TCP_CLIENT_BOGUS, client->uid,
-                    sa->address, sa->addrlen);
+            FSTRACE(ASYNC_TCP_CLIENT_BOGUS, client->uid, sa->address,
+                    sa->addrlen);
             continue;
         }
         conn_candidate_t *candidate = fsalloc(sizeof *candidate);
@@ -311,8 +308,8 @@ tcp_client_t *open_tcp_client_2(async_t *async, const char *server_host,
     tcp_client_t *client = fsalloc(sizeof *client);
     client->async = async;
     client->uid = fstrace_get_unique_id();
-    FSTRACE(ASYNC_TCP_CLIENT_CREATE, client->uid, client, async,
-            server_host, port);
+    FSTRACE(ASYNC_TCP_CLIENT_CREATE, client->uid, client, async, server_host,
+            port);
     client->choice_callback = NULL_ACTION_1;
     client->state = TCP_CLIENT_RESOLVING;
     client->port = port;
@@ -322,7 +319,7 @@ tcp_client_t *open_tcp_client_2(async_t *async, const char *server_host,
     }
     const struct addrinfo hint = {
         .ai_socktype = SOCK_STREAM,
-        .ai_protocol = IPPROTO_TCP
+        .ai_protocol = IPPROTO_TCP,
     };
     action_1 resolution_cb = { client, (act_1) probe_resolution };
     client->query =
@@ -331,8 +328,8 @@ tcp_client_t *open_tcp_client_2(async_t *async, const char *server_host,
     return client;
 }
 
-tcp_client_t *open_tcp_client(async_t *async,
-                              const char *server_host, unsigned port)
+tcp_client_t *open_tcp_client(async_t *async, const char *server_host,
+                              unsigned port)
 {
     return open_tcp_client_2(async, server_host, port, NULL);
 }
@@ -406,7 +403,8 @@ tcp_conn_t *tcp_client_establish(tcp_client_t *client)
         case TCP_CLIENT_CONNECTED:
             if (list_empty(client->candidates))
                 errno = EDESTADDRREQ;
-            else errno = EAGAIN;
+            else
+                errno = EAGAIN;
             FSTRACE(ASYNC_TCP_CLIENT_ESTABLISH_FAIL, client->uid);
             return NULL;
         case TCP_CLIENT_NOTIFIED:

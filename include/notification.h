@@ -1,8 +1,8 @@
 #ifndef __NOTIFICATION__
 #define __NOTIFICATION__
 
-#include "async.h"
 #include "action_1.h"
+#include "async.h"
 
 #ifdef __cplusplus
 extern "C" {

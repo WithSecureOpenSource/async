@@ -2,6 +2,7 @@
 #define _PAUSESTREAM_H_
 
 #include <sys/types.h>
+
 #include "async.h"
 #include "bytestream_1.h"
 

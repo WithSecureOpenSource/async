@@ -1,8 +1,10 @@
-#include <stdint.h>
-#include <unistd.h>
-#include <string.h>
-#include <async/zerostream.h>
 #include "asynctest-zerostream.h"
+
+#include <stdint.h>
+#include <string.h>
+#include <unistd.h>
+
+#include <async/zerostream.h>
 
 VERDICT test_zerostream(void)
 {
@@ -11,8 +13,8 @@ VERDICT test_zerostream(void)
     for (k = 0; k < 2; k++) {
         for (i = 0; i < 10; i++) {
             memset(buffer, 'x', sizeof buffer);
-            ssize_t count = bytestream_1_read(zerostream, buffer,
-                                              sizeof buffer);
+            ssize_t count =
+                bytestream_1_read(zerostream, buffer, sizeof buffer);
             if (count != sizeof buffer) {
                 tlog("Unexpected count: %d", (int) count);
                 return FAIL;

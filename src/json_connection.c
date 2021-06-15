@@ -1,13 +1,16 @@
 #include "json_connection.h"
+
+#include <assert.h>
+
+#include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
+#include "async_version.h"
 #include "farewellstream.h"
 #include "jsonencoder.h"
 #include "jsonyield.h"
 #include "naiveencoder.h"
 #include "queuestream.h"
-#include <fsdyn/fsalloc.h>
-#include <fstrace.h>
-#include <assert.h>
-#include "async_version.h"
 
 struct json_conn {
     async_t *async;
@@ -32,15 +35,13 @@ json_conn_t *open_json_conn(async_t *async, tcp_conn_t *tcp_conn,
     conn->uid = fstrace_get_unique_id();
     conn->tcp_conn = tcp_conn;
     conn->input_stream =
-        open_jsonyield(async,
-                       tcp_get_input_stream(conn->tcp_conn),
+        open_jsonyield(async, tcp_get_input_stream(conn->tcp_conn),
                        max_frame_size);
     conn->output_stream = make_queuestream(async);
     bytestream_1 stream = queuestream_as_bytestream_1(conn->output_stream);
     action_1 farewell_cb = { conn, (act_1) output_closed };
     farewellstream_t *fws = open_farewellstream(async, stream, farewell_cb);
-    tcp_set_output_stream(conn->tcp_conn,
-                          farewellstream_as_bytestream_1(fws));
+    tcp_set_output_stream(conn->tcp_conn, farewellstream_as_bytestream_1(fws));
     FSTRACE(ASYNC_JSON_CONN_CREATE, conn->uid);
     return conn;
 }

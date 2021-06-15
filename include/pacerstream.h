@@ -13,8 +13,7 @@ typedef struct pacerstream pacerstream_t;
 /*
  * Open a rate-limited stream.
  */
-pacerstream_t *pace_stream(async_t *async, bytestream_1 stream,
-                           double byterate,
+pacerstream_t *pace_stream(async_t *async, bytestream_1 stream, double byterate,
                            size_t min_burst, size_t max_burst);
 
 /*

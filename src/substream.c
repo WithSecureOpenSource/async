@@ -1,13 +1,16 @@
-#include <errno.h>
-#include <assert.h>
-#include <fstrace.h>
-#include <fsdyn/fsalloc.h>
-#include "async.h"
 #include "substream.h"
+
+#include <assert.h>
+#include <errno.h>
+
+#include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
+#include "async.h"
 #include "async_version.h"
 
 enum {
-    SUBSTREAM_CLOSED = -1
+    SUBSTREAM_CLOSED = -1,
 };
 
 struct substream {
@@ -133,7 +136,7 @@ static const struct bytestream_1_vt substream_vt = {
     .read = _read,
     .close = _close,
     .register_callback = _register_callback,
-    .unregister_callback = _unregister_callback
+    .unregister_callback = _unregister_callback,
 };
 
 bytestream_1 substream_as_bytestream_1(substream_t *substr)
@@ -160,14 +163,14 @@ static const char *trace_mode(void *pmode)
 FSTRACE_DECL(ASYNC_SUBSTREAM_CREATE,
              "UID=%64u PTR=%p ASYNC=%p STREAM=%p MODE=%I BEGIN=%z END=%z");
 
-substream_t *make_substream(async_t *async, bytestream_1 stream,
-                            int mode, size_t begin, size_t end)
+substream_t *make_substream(async_t *async, bytestream_1 stream, int mode,
+                            size_t begin, size_t end)
 {
     substream_t *substr = fsalloc(sizeof *substr);
     substr->async = async;
     substr->uid = fstrace_get_unique_id();
-    FSTRACE(ASYNC_SUBSTREAM_CREATE, substr->uid, substr, async,
-            stream.obj, trace_mode, &mode, begin, end);
+    FSTRACE(ASYNC_SUBSTREAM_CREATE, substr->uid, substr, async, stream.obj,
+            trace_mode, &mode, begin, end);
     substr->stream = stream;
     substr->mode = mode;
     substr->begin = begin;

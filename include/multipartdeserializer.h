@@ -29,8 +29,7 @@ bytestream_1 *multipartdeserializer_receive(
 /* Closing the multipart deserializer closes the source stream as well. */
 void multipartdeserializer_close(multipartdeserializer_t *deserializer);
 void multipartdeserializer_register_callback(
-    multipartdeserializer_t *deserializer,
-    action_1 action);
+    multipartdeserializer_t *deserializer, action_1 action);
 void multipartdeserializer_unregister_callback(
     multipartdeserializer_t *deserializer);
 

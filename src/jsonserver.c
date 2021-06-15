@@ -1,21 +1,24 @@
-#include "async.h"
-#include "farewellstream.h"
-#include "jsonencoder.h"
 #include "jsonserver.h"
-#include "jsonyield.h"
-#include "naiveencoder.h"
-#include "queuestream.h"
+
+#include <assert.h>
+#include <errno.h>
+
 #include <fsdyn/fsalloc.h>
 #include <fsdyn/list.h>
 #include <fstrace.h>
-#include <assert.h>
-#include <errno.h>
+
+#include "async.h"
 #include "async_version.h"
+#include "farewellstream.h"
+#include "jsonencoder.h"
+#include "jsonyield.h"
+#include "naiveencoder.h"
+#include "queuestream.h"
 
 typedef enum {
     CONN_OPEN,
     CONN_CLOSING,
-    CONN_ZOMBIE
+    CONN_ZOMBIE,
 } conn_state_t;
 
 typedef struct conn {
@@ -79,9 +82,8 @@ FSTRACE_DECL(ASYNC_JSONSERVER_CONN_SET_STATE, "UID=%64u OLD=%I NEW=%I");
 
 static void conn_set_state(conn_t *conn, conn_state_t state)
 {
-    FSTRACE(ASYNC_JSONSERVER_CONN_SET_STATE, conn->uid,
-            conn_trace_state, &conn->state,
-            conn_trace_state, &state);
+    FSTRACE(ASYNC_JSONSERVER_CONN_SET_STATE, conn->uid, conn_trace_state,
+            &conn->state, conn_trace_state, &state);
     conn->state = state;
 }
 
@@ -171,8 +173,7 @@ static void open_connection(jsonserver_t *server, tcp_conn_t *tcp_conn)
         open_relaxed_farewellstream(server->async, stream, farewell_cb);
     tcp_set_output_stream(conn->tcp_conn, farewellstream_as_bytestream_1(fws));
     conn->input_stream =
-        open_jsonyield(server->async,
-                       tcp_get_input_stream(conn->tcp_conn),
+        open_jsonyield(server->async, tcp_get_input_stream(conn->tcp_conn),
                        server->max_frame_size);
     action_1 read_cb = { conn, (act_1) conn_probe };
     jsonyield_register_callback(conn->input_stream, read_cb);
@@ -253,19 +254,18 @@ void jsonserver_unregister_callback(jsonserver_t *server)
 }
 
 FSTRACE_DECL(ASYNC_JSONSERVER_RECEIVE_REQUEST_SPURIOUS, "UID=%64u");
-FSTRACE_DECL(ASYNC_JSONSERVER_RECEIVE_REQUEST,
-             "UID=%64u CONN-ID=%64u REQ=%p");
+FSTRACE_DECL(ASYNC_JSONSERVER_RECEIVE_REQUEST, "UID=%64u CONN-ID=%64u REQ=%p");
 
 jsonreq_t *jsonserver_receive_request(jsonserver_t *server)
 {
-    jsonreq_t *request = (jsonreq_t *)list_pop_first(server->pending);
+    jsonreq_t *request = (jsonreq_t *) list_pop_first(server->pending);
     if (!request) {
         FSTRACE(ASYNC_JSONSERVER_RECEIVE_REQUEST_SPURIOUS, server->uid);
         errno = EAGAIN;
         return NULL;
     }
-    FSTRACE(ASYNC_JSONSERVER_RECEIVE_REQUEST, server->uid,
-            request->conn->uid, request);
+    FSTRACE(ASYNC_JSONSERVER_RECEIVE_REQUEST, server->uid, request->conn->uid,
+            request);
     return request;
 }
 
@@ -274,8 +274,7 @@ json_thing_t *jsonreq_get_body(jsonreq_t *request)
     return request->body;
 }
 
-FSTRACE_DECL(ASYNC_JSONREQ_RESPOND,
-             "CONN-ID=%64u REQ=%p RESPONSE=%I");
+FSTRACE_DECL(ASYNC_JSONREQ_RESPOND, "CONN-ID=%64u REQ=%p RESPONSE=%I");
 FSTRACE_DECL(ASYNC_JSONREQ_RESPOND_DISCONNECTED,
              "CONN-ID=%64u REQ=%p RESPONSE=%I");
 
@@ -285,20 +284,18 @@ void jsonreq_respond(jsonreq_t *request, json_thing_t *body)
     assert(conn->state == CONN_OPEN);
     jsonreq_destroy(request);
     if (!queuestream_closed(conn->output_stream)) {
-        FSTRACE(ASYNC_JSONREQ_RESPOND, conn->uid,
-                request, json_trace, body);
+        FSTRACE(ASYNC_JSONREQ_RESPOND, conn->uid, request, json_trace, body);
         bytestream_1 payload =
             jsonencoder_as_bytestream_1(json_encode(conn->server->async, body));
         naiveencoder_t *naive_encoder =
             naive_encode(conn->server->async, payload, '\0', '\33');
         queuestream_enqueue(conn->output_stream,
                             naiveencoder_as_bytestream_1(naive_encoder));
-        if (conn->reference_count == 0 &&
-            conn->input_closed)
+        if (conn->reference_count == 0 && conn->input_closed)
             conn_terminate(conn);
     } else {
-        FSTRACE(ASYNC_JSONREQ_RESPOND_DISCONNECTED, conn->uid,
-                request, json_trace, body);
+        FSTRACE(ASYNC_JSONREQ_RESPOND_DISCONNECTED, conn->uid, request,
+                json_trace, body);
         if (conn->reference_count == 0)
             conn_close(conn);
     }

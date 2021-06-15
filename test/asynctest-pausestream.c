@@ -1,16 +1,19 @@
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
-#include <assert.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <async/async.h>
-#include <async/pausestream.h>
 #include "asynctest-pausestream.h"
 
-off_t pausestr_cb(void *ctx) {
-    off_t *limit = (off_t *)ctx;
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <async/async.h>
+#include <async/pausestream.h>
+
+off_t pausestr_cb(void *ctx)
+{
+    off_t *limit = (off_t *) ctx;
     return *limit;
 }
 

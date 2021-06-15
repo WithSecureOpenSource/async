@@ -1,17 +1,17 @@
 #include "multipartdeserializer.h"
 
-#include "async_version.h"
-#include "deserializer.h"
-#include "multipartdecoder.h"
+#include <assert.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <unistd.h>
 
 #include <fsdyn/charstr.h>
 #include <fsdyn/fsalloc.h>
 #include <fstrace.h>
 
-#include <assert.h>
-#include <errno.h>
-#include <stdbool.h>
-#include <unistd.h>
+#include "async_version.h"
+#include "deserializer.h"
+#include "multipartdecoder.h"
 
 struct multipartdeserializer {
     async_t *async;
@@ -40,10 +40,7 @@ multipartdeserializer_t *open_multipartdeserializer(async_t *async,
     multipartdeserializer_t *des = fsalloc(sizeof *des);
     des->async = async;
     des->uid = fstrace_get_unique_id();
-    FSTRACE(ASYNC_MULTIPARTDESERIALIZER_CREATE,
-            des->uid,
-            des,
-            async,
+    FSTRACE(ASYNC_MULTIPARTDESERIALIZER_CREATE, des->uid, des, async,
             source.obj);
     des->boundary = charstr_dupstr(boundary);
     des->first_part = true;
@@ -85,9 +82,7 @@ FSTRACE_DECL(ASYNC_MULTIPARTDESERIALIZER_REGISTER, "UID=%64u OBJ=%p ACT=%p");
 void multipartdeserializer_register_callback(multipartdeserializer_t *des,
                                              action_1 action)
 {
-    FSTRACE(ASYNC_MULTIPARTDESERIALIZER_REGISTER,
-            des->uid,
-            action.obj,
+    FSTRACE(ASYNC_MULTIPARTDESERIALIZER_REGISTER, des->uid, action.obj,
             action.act);
     deserializer_register_callback(des->deserializer, action);
 }

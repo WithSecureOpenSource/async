@@ -39,8 +39,8 @@ enum {
  * read may translate into a large and slow read of the underlying
  * stream.
  */
-substream_t *make_substream(async_t *async, bytestream_1 stream,
-                            int mode, size_t begin, size_t end);
+substream_t *make_substream(async_t *async, bytestream_1 stream, int mode,
+                            size_t begin, size_t end);
 
 bytestream_1 substream_as_bytestream_1(substream_t *substr);
 ssize_t substream_read(substream_t *substr, void *buf, size_t count);

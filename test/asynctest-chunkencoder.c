@@ -1,11 +1,14 @@
-#include <errno.h>
+#include "asynctest-chunkencoder.h"
+
 #include <assert.h>
+#include <errno.h>
+
 #include <async/async.h>
 #include <async/chunkencoder.h>
 #include <async/stringstream.h>
-#include "asynctest-chunkencoder.h"
 
-static const char *chunk_data = "SMS Prinzregent Luitpold was the fifth and "
+static const char *chunk_data =
+    "SMS Prinzregent Luitpold was the fifth and "
     "final vessel of the Kaiser class of battleships of the Imperial"
     " German Navy. Prinzregent Luitpold's keel was laid in October 1910"
     " at the Germaniawerft dockyard in Kiel. She was launched on 17"
@@ -159,16 +162,14 @@ VERDICT test_chunkencoder(void)
 {
     /* Simplification: assume no extensions or trailer */
     enum {
-        MAX_CHUNK = 30
+        MAX_CHUNK = 30,
     };
     async_t *async = make_async();
     stringstream_t *stringstr = open_stringstream(async, chunk_data);
     chunkencoder_t *encoder =
-        chunk_encode(async,
-                     stringstream_as_bytestream_1(stringstr),
-                     MAX_CHUNK);
+        chunk_encode(async, stringstream_as_bytestream_1(stringstr), MAX_CHUNK);
     CHUNK_CONTEXT context = {
-        .state = CHUNK_READING_LENGTH
+        .state = CHUNK_READING_LENGTH,
     };
     for (;;) {
         char buffer[100];

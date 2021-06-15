@@ -1,8 +1,11 @@
+#include "base64decoder.h"
+
 #include <assert.h>
-#include <fstrace.h>
+
 #include <fsdyn/base64.h>
 #include <fsdyn/fsalloc.h>
-#include "base64decoder.h"
+#include <fstrace.h>
+
 #include "async_version.h"
 
 struct base64decoder {
@@ -14,11 +17,10 @@ struct base64decoder {
     unsigned bits;
 };
 
-FSTRACE_DECL(ASYNC_BASE64DECODER_CREATE,
-             "UID=%64u PTR=%p ASYNC=%p STREAM=%p");
+FSTRACE_DECL(ASYNC_BASE64DECODER_CREATE, "UID=%64u PTR=%p ASYNC=%p STREAM=%p");
 
-base64decoder_t *base64_decode(async_t *async, bytestream_1 stream,
-                               char pos62, char pos63)
+base64decoder_t *base64_decode(async_t *async, bytestream_1 stream, char pos62,
+                               char pos63)
 {
     base64decoder_t *decoder = fsalloc(sizeof(*decoder));
     decoder->async = async;
@@ -29,7 +31,7 @@ base64decoder_t *base64_decode(async_t *async, bytestream_1 stream,
     decoder->pos62 = pos62 == -1 ? '+' : pos62;
     decoder->pos63 = pos63 == -1 ? '/' : pos63;
     decoder->bit_count = 0;
-    decoder->bits = 0;          /* don't-care */
+    decoder->bits = 0; /* don't-care */
     return decoder;
 }
 
@@ -139,7 +141,7 @@ static struct bytestream_1_vt base64stream_vt = {
     .read = _read,
     .close = _close,
     .register_callback = _register_callback,
-    .unregister_callback = _unregister_callback
+    .unregister_callback = _unregister_callback,
 };
 
 bytestream_1 base64decoder_as_bytestream_1(base64decoder_t *decoder)

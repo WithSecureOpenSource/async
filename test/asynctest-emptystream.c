@@ -1,8 +1,10 @@
+#include "asynctest-emptystream.h"
+
+#include <errno.h>
 #include <stdint.h>
 #include <unistd.h>
-#include <errno.h>
+
 #include <async/emptystream.h>
-#include "asynctest-emptystream.h"
 
 VERDICT test_emptystream(void)
 {

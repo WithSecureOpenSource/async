@@ -1,10 +1,13 @@
+#include "pausestream.h"
+
+#include <assert.h>
 #include <errno.h>
 #include <unistd.h>
-#include <assert.h>
-#include <fstrace.h>
+
 #include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
 #include "async.h"
-#include "pausestream.h"
 #include "async_version.h"
 
 struct pausestream {
@@ -76,8 +79,7 @@ static void _close(void *obj)
 
 FSTRACE_DECL(ASYNC_PAUSESTREAM_REGISTER, "UID=%64u OBJ=%p ACT=%p");
 
-void pausestream_register_callback(pausestream_t *pausestr,
-                                   action_1 action)
+void pausestream_register_callback(pausestream_t *pausestr, action_1 action)
 {
     FSTRACE(ASYNC_PAUSESTREAM_REGISTER, pausestr->uid, action.obj, action.act);
 }

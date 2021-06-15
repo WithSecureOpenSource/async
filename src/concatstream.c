@@ -1,11 +1,14 @@
-#include <string.h>
-#include <errno.h>
-#include <fsdyn/fsalloc.h>
-#include <assert.h>
-#include "async.h"
 #include "concatstream.h"
-#include "queuestream.h"
+
+#include <assert.h>
+#include <errno.h>
+#include <string.h>
+
+#include <fsdyn/fsalloc.h>
+
+#include "async.h"
 #include "async_version.h"
+#include "queuestream.h"
 
 /* No need for a separate type. Just type cast queuestream_t
  * everywhere. */
@@ -62,8 +65,8 @@ bytestream_1 concatstream_as_bytestream_1(concatstream_t *conc)
     return (bytestream_1) { conc, &concatstream_vt };
 }
 
-concatstream_t *concatenate_streams(async_t *async,
-                                    bytestream_1 streams[], size_t count)
+concatstream_t *concatenate_streams(async_t *async, bytestream_1 streams[],
+                                    size_t count)
 {
     queuestream_t *qstr = make_queuestream(async);
     size_t i;
@@ -73,23 +76,24 @@ concatstream_t *concatenate_streams(async_t *async,
     return (concatstream_t *) qstr;
 }
 
-concatstream_t *concatenate_two_streams(async_t *async,
-                                        bytestream_1 first,
+concatstream_t *concatenate_two_streams(async_t *async, bytestream_1 first,
                                         bytestream_1 second)
 {
     bytestream_1 streams[] = {
-        first, second
+        first,
+        second,
     };
     return concatenate_streams(async, streams, 2);
 }
 
-concatstream_t *concatenate_three_streams(async_t *async,
-                                          bytestream_1 first,
+concatstream_t *concatenate_three_streams(async_t *async, bytestream_1 first,
                                           bytestream_1 second,
                                           bytestream_1 third)
 {
     bytestream_1 streams[] = {
-        first, second, third
+        first,
+        second,
+        third,
     };
     return concatenate_streams(async, streams, 3);
 }

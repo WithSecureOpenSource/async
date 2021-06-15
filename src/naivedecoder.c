@@ -1,18 +1,21 @@
-#include <string.h>
+#include "naivedecoder.h"
+
+#include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
-#include <assert.h>
-#include <fstrace.h>
+#include <string.h>
+
 #include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
 #include "async.h"
-#include "naivedecoder.h"
 #include "async_version.h"
 
 enum {
     NAIVEDECODER_READING,
     NAIVEDECODER_ESCAPED,
-    NAIVEDECODER_TERMINATED,    /* final for NAIVEDECODER_DETACH */
-    NAIVEDECODER_EXHAUSTED,     /* final for NAIVEDECODER_ADOPT_INPUT */
+    NAIVEDECODER_TERMINATED, /* final for NAIVEDECODER_DETACH */
+    NAIVEDECODER_EXHAUSTED,  /* final for NAIVEDECODER_ADOPT_INPUT */
     NAIVEDECODER_ERROR,
     NAIVEDECODER_CLOSED,
 };
@@ -34,8 +37,8 @@ static ssize_t do_read(naivedecoder_t *decoder, void *buf, size_t size)
         case NAIVEDECODER_ESCAPED: {
             if (decoder->low >= decoder->high) {
                 ssize_t more =
-                    bytestream_1_read(decoder->source,
-                                      decoder->buffer, sizeof decoder->buffer);
+                    bytestream_1_read(decoder->source, decoder->buffer,
+                                      sizeof decoder->buffer);
                 if (more < 0)
                     return -1;
                 if (!more) {
@@ -208,12 +211,11 @@ static const char *trace_mode(void *pmode)
     }
 }
 
-
 FSTRACE_DECL(ASYNC_NAIVEDECODER_CREATE,
              "UID=%64u PTR=%p ASYNC=%p SOURCE=%p MODE=%I");
 
-naivedecoder_t *naive_decode(async_t *async, bytestream_1 source,
-                             int mode, uint8_t terminator, uint8_t escape)
+naivedecoder_t *naive_decode(async_t *async, bytestream_1 source, int mode,
+                             uint8_t terminator, uint8_t escape)
 {
     naivedecoder_t *decoder = fsalloc(sizeof *decoder);
     decoder->async = async;

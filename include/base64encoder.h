@@ -2,6 +2,7 @@
 #define __BASE64ENCODER__
 
 #include <stdbool.h>
+
 #include "async.h"
 #include "bytestream_1.h"
 
@@ -15,8 +16,8 @@ typedef struct base64encoder base64encoder_t;
  * chooses the defaults ('+', '/' and '=', respectively). If pad is
  * true, zero, one or two padding characters are appended to the
  * encoding. */
-base64encoder_t *base64_encode(async_t *async, bytestream_1 stream,
-                               char pos62, char pos63, bool pad, char padchar);
+base64encoder_t *base64_encode(async_t *async, bytestream_1 stream, char pos62,
+                               char pos63, bool pad, char padchar);
 
 bytestream_1 base64encoder_as_bytestream_1(base64encoder_t *encoder);
 ssize_t base64encoder_read(base64encoder_t *encoder, void *buf, size_t count);

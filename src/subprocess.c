@@ -1,17 +1,17 @@
 #include "subprocess.h"
 
-#include "drystream.h"
-#include "pipestream.h"
-
-#include <fsdyn/integer.h>
-#include <fstrace.h>
-#include <unixkit/unixkit.h>
-
 #include <assert.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#include <fsdyn/integer.h>
+#include <fstrace.h>
+#include <unixkit/unixkit.h>
+
+#include "drystream.h"
+#include "pipestream.h"
 
 struct subprocess {
     async_t *async;
@@ -25,10 +25,8 @@ FSTRACE_DECL(ASYNC_SUBPROCESS_CREATE, "UID=%64u PTR=%p ASYNC=%p PID=%64u");
 FSTRACE_DECL(ASYNC_SUBPROCESS_CREATE_SOCKETPAIR_FAIL, "ERRNO=%e");
 FSTRACE_DECL(ASYNC_SUBPROCESS_CREATE_FORK_FAIL, "ERRNO=%e");
 
-subprocess_t *open_subprocess(async_t *async,
-                              list_t *keep_fds,
-                              bool capture_stdout,
-                              bool capture_stderr,
+subprocess_t *open_subprocess(async_t *async, list_t *keep_fds,
+                              bool capture_stdout, bool capture_stderr,
                               action_1 post_fork_cb)
 {
     int stdout_pipe[2] = { -1, -1 };
@@ -90,10 +88,7 @@ subprocess_t *open_subprocess(async_t *async,
             pipestream_as_bytestream_1(open_pipestream(async, stderr_pipe[0]));
     }
 
-    FSTRACE(ASYNC_SUBPROCESS_CREATE,
-            subprocess->uid,
-            subprocess,
-            async,
+    FSTRACE(ASYNC_SUBPROCESS_CREATE, subprocess->uid, subprocess, async,
             (uint64_t) pid);
     return subprocess;
 

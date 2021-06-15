@@ -1,22 +1,25 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <errno.h>
-#include <assert.h>
-#include <fsdyn/fsalloc.h>
-#include <fsdyn/charstr.h>
-#include <fsdyn/base64.h>
-#include <fsdyn/list.h>
-#include <fsdyn/hashtable.h>
-#include <fstrace.h>
 #include "fsadns.h"
-#include "jsonthreader.h"
+
+#include <assert.h>
+#include <errno.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+
+#include <fsdyn/base64.h>
+#include <fsdyn/charstr.h>
+#include <fsdyn/fsalloc.h>
+#include <fsdyn/hashtable.h>
+#include <fsdyn/list.h>
+#include <fstrace.h>
+
 #include "async_version.h"
+#include "jsonthreader.h"
 
 struct fsadns {
     async_t *async;
     uint64_t uid;
-    int error;                  /* if non-0, the error is fatal */
+    int error; /* if non-0, the error is fatal */
     jsonthreader_t *threader;
     hash_table_t *query_map;
     list_t *queries;
@@ -39,17 +42,17 @@ struct fsadns_query {
     uint64_t uid;
     query_state_t state;
     union {
-        struct {                /* QUERY_REPLIED_ADDRESS only */
+        struct { /* QUERY_REPLIED_ADDRESS only */
             struct addrinfo *info;
         } address;
-        struct {                /* QUERY_REPLIED_NAME only */
+        struct { /* QUERY_REPLIED_NAME only */
             char *host, *serv;
         } name;
-        struct {                /* QUERY_ERRORED only */
+        struct { /* QUERY_ERRORED only */
             int err, err_no;
         } error;
     };
-    list_elem_t *loc;           /* in dns->queries */
+    list_elem_t *loc; /* in dns->queries */
 };
 
 static uint64_t query_hash(const void *key)
@@ -68,8 +71,8 @@ static int query_cmp(const void *key1, const void *key2)
     return 0;
 }
 
-static void construct_resolve_address_fail(json_thing_t *resp,
-                                           int err, int syserr)
+static void construct_resolve_address_fail(json_thing_t *resp, int err,
+                                           int syserr)
 {
     json_thing_t *fields = json_make_object();
     json_add_to_object(resp, "resolve_address_fail", fields);
@@ -86,13 +89,13 @@ static json_thing_t *construct_addrinfo(const struct addrinfo *ap)
     json_add_to_object(info, "socketype", json_make_integer(ap->ai_socktype));
     json_add_to_object(info, "protocol", json_make_integer(ap->ai_protocol));
     if (ap->ai_addr) {
-        char *base64_encoded = base64_encode_simple(ap->ai_addr, ap->ai_addrlen);
+        char *base64_encoded =
+            base64_encode_simple(ap->ai_addr, ap->ai_addrlen);
         json_add_to_object(info, "addr", json_adopt_string(base64_encoded));
     }
     if (ap->ai_flags & AI_CANONNAME) {
         char *url_encoded = charstr_url_encode(ap->ai_canonname);
-        json_add_to_object(info, "canonname",
-                           json_adopt_string(url_encoded));
+        json_add_to_object(info, "canonname", json_adopt_string(url_encoded));
     }
     return info;
 }
@@ -177,7 +180,8 @@ static json_thing_t *resolve_address(fsadns_t *dns, json_thing_t *reqid,
         phints = &hints;
         deconstruct_addrinfo(&hints, hint_fields);
         hints.ai_next = NULL;
-    } else phints = NULL;
+    } else
+        phints = NULL;
     json_thing_t *response = json_make_object();
     if (reqid)
         json_add_to_object(response, "reqid", json_clone(reqid));
@@ -185,10 +189,12 @@ static json_thing_t *resolve_address(fsadns_t *dns, json_thing_t *reqid,
     char *node, *service;
     if (json_object_get_string(fields, "node", &s))
         node = charstr_url_decode(s, true, NULL);
-    else assert(false);
+    else
+        assert(false);
     if (json_object_get_string(fields, "service", &s))
         service = charstr_url_decode(s, true, NULL);
-    else service = NULL;
+    else
+        service = NULL;
     FSTRACE(FSADNS_SERVE_GETADDRINFO_START, dns->uid);
     int err = getaddrinfo(node, service, phints, &res);
     if (err) {
@@ -328,13 +334,8 @@ fsadns_t *fsadns_make_resolver(async_t *async, unsigned max_parallel,
     list_append(fds_to_keep, as_integer(0));
     list_append(fds_to_keep, as_integer(1));
     list_append(fds_to_keep, as_integer(2));
-    dns->threader = make_jsonthreader(async,
-                                      fds_to_keep,
-                                      post_fork_cb,
-                                      resolve,
-                                      dns,
-                                      100000,
-                                      max_parallel);
+    dns->threader = make_jsonthreader(async, fds_to_keep, post_fork_cb, resolve,
+                                      dns, 100000, max_parallel);
     if (!dns->threader) {
         FSTRACE(FSADNS_CREATE_JSONTHREADER_FAIL, dns->uid);
         fsfree(dns);
@@ -377,8 +378,8 @@ FSTRACE_DECL(FSADNS_QUERY_SET_STATE, "UID=%64u OLD=%I NEW=%I");
 
 static void set_query_state(fsadns_query_t *query, query_state_t state)
 {
-    FSTRACE(FSADNS_QUERY_SET_STATE, query->uid,
-            trace_state, &query->state, trace_state, &state);
+    FSTRACE(FSADNS_QUERY_SET_STATE, query->uid, trace_state, &query->state,
+            trace_state, &state);
     query->state = state;
 }
 
@@ -396,8 +397,7 @@ static void destroy_query(fsadns_query_t *query)
             fsfree(query->name.host);
             fsfree(query->name.serv);
             break;
-        default:
-            ;
+        default:;
     }
     list_remove(dns->queries, query->loc);
     destroy_hash_element(hash_table_pop(dns->query_map, &query->uid));
@@ -441,18 +441,17 @@ FSTRACE_DECL(FSADNS_ADDRESS_QUERY_NO_HINTS, "UID=%64u");
 FSTRACE_DECL(FSADNS_ADDRESS_QUERY_HINTS,
              "UID=%64u FLG=0x%x FAM=%d SKTYP=%d PROT=%d ADDR=%a CANON=%s");
 
-fsadns_query_t *fsadns_resolve(fsadns_t *dns,
-                               const char *node, const char *service,
-                               const struct addrinfo *hints,
-                               action_1 probe)
+fsadns_query_t *fsadns_resolve(fsadns_t *dns, const char *node,
+                               const char *service,
+                               const struct addrinfo *hints, action_1 probe)
 {
     if (dns->error) {
         errno = dns->error;
         return NULL;
     }
     fsadns_query_t *query = make_address_query(dns, probe);
-    FSTRACE(FSADNS_ADDRESS_QUERY_CREATE,
-            query->uid, query, dns->uid, node, service);
+    FSTRACE(FSADNS_ADDRESS_QUERY_CREATE, query->uid, query, dns->uid, node,
+            service);
     json_thing_t *request = json_make_object();
     json_add_to_object(request, "reqid", json_make_unsigned(query->uid));
     json_thing_t *fields = json_make_object();
@@ -464,12 +463,13 @@ fsadns_query_t *fsadns_resolve(fsadns_t *dns,
         json_add_to_object(fields, "service",
                            json_adopt_string(charstr_url_encode(service)));
     if (hints) {
-        FSTRACE(FSADNS_ADDRESS_QUERY_HINTS, query->uid,
-                hints->ai_flags, hints->ai_family, hints->ai_socktype,
-                hints->ai_protocol, hints->ai_addr, hints->ai_addrlen,
+        FSTRACE(FSADNS_ADDRESS_QUERY_HINTS, query->uid, hints->ai_flags,
+                hints->ai_family, hints->ai_socktype, hints->ai_protocol,
+                hints->ai_addr, hints->ai_addrlen,
                 hints->ai_flags & AI_CANONNAME ? hints->ai_canonname : NULL);
         json_add_to_object(fields, "hints", construct_addrinfo(hints));
-    } else FSTRACE(FSADNS_ADDRESS_QUERY_NO_HINTS, query->uid);
+    } else
+        FSTRACE(FSADNS_ADDRESS_QUERY_NO_HINTS, query->uid);
     jsonthreader_send(dns->threader, request);
     json_destroy_thing(request);
     return query;
@@ -537,7 +537,8 @@ static bool parse_address_failure(fsadns_t *dns, json_thing_t *response,
     *error = err;
     if (json_object_get_integer(fields, "errno", &err))
         *err_no = err;
-    else *err_no = -1;
+    else
+        *err_no = -1;
     FSTRACE(FSADNS_GOOD_ADDRESS_FAILURE, dns->uid, *error, *err_no);
     return true;
 }
@@ -575,7 +576,8 @@ static bool parse_name_failure(fsadns_t *dns, json_thing_t *response,
     *error = err;
     if (json_object_get_integer(fields, "errno", &err))
         *err_no = err;
-    else *err_no = -1;
+    else
+        *err_no = -1;
     FSTRACE(FSADNS_GOOD_NAME_FAILURE, dns->uid, *error, *err_no);
     return true;
 }
@@ -700,8 +702,8 @@ int fsadns_check(fsadns_query_t *query, struct addrinfo **res)
             errno = EAGAIN;
             return EAI_SYSTEM;
         case QUERY_REPLIED_ADDRESS:
-            FSTRACE(FSADNS_ADDRESS_QUERY_REPLIED,
-                    query->uid, query->address.info);
+            FSTRACE(FSADNS_ADDRESS_QUERY_REPLIED, query->uid,
+                    query->address.info);
             *res = query->address.info;
             set_query_state(query, QUERY_CONSUMED);
             destroy_query(query);
@@ -778,10 +780,8 @@ static fsadns_query_t *make_name_query(fsadns_t *dns, action_1 probe)
 
 FSTRACE_DECL(FSADNS_NAME_QUERY_CREATE, "UID=%64u PTR=%p DNS=%64u ADDRESS=%a");
 
-fsadns_query_t *fsadns_resolve_name(fsadns_t *dns,
-                                    const struct sockaddr *addr,
-                                    socklen_t addrlen,
-                                    int flags,
+fsadns_query_t *fsadns_resolve_name(fsadns_t *dns, const struct sockaddr *addr,
+                                    socklen_t addrlen, int flags,
                                     action_1 probe)
 {
     if (dns->error) {
@@ -789,8 +789,8 @@ fsadns_query_t *fsadns_resolve_name(fsadns_t *dns,
         return NULL;
     }
     fsadns_query_t *query = make_name_query(dns, probe);
-    FSTRACE(FSADNS_NAME_QUERY_CREATE, query->uid, query, dns->uid,
-            addr, addrlen);
+    FSTRACE(FSADNS_NAME_QUERY_CREATE, query->uid, query, dns->uid, addr,
+            addrlen);
     json_thing_t *request = json_make_object();
     json_add_to_object(request, "reqid", json_make_unsigned(query->uid));
     json_thing_t *fields = json_make_object();
@@ -807,9 +807,7 @@ FSTRACE_DECL(FSADNS_NAME_QUERY_REPLIED, "UID=%64u HOST=%s SERV=%s");
 FSTRACE_DECL(FSADNS_NAME_QUERY_ERRORED, "UID=%64u ERRNO=%E");
 FSTRACE_DECL(FSADNS_POSTHUMOUS_NAME_CHECK, "UID=%64u");
 
-int fsadns_check_name(fsadns_query_t *query,
-                      char **host,
-                      char **serv)
+int fsadns_check_name(fsadns_query_t *query, char **host, char **serv)
 {
     fsadns_t *dns = query->dns;
     switch (query->state) {

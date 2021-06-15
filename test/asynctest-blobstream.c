@@ -1,8 +1,10 @@
+#include "asynctest-blobstream.h"
+
 #include <errno.h>
 #include <string.h>
+
 #include <async/async.h>
 #include <async/blobstream.h>
-#include "asynctest-blobstream.h"
 
 VERDICT test_blobstream(void)
 {
@@ -12,8 +14,8 @@ VERDICT test_blobstream(void)
     ssize_t count;
     count = blobstream_read(blobstr, buffer, 5);
     if (count != 5) {
-        tlog("Unexpected error %d (errno %d) from blobstream_read",
-             (int) count, (int) errno);
+        tlog("Unexpected error %d (errno %d) from blobstream_read", (int) count,
+             (int) errno);
         return FAIL;
     }
     if (strncmp(buffer, "Hello", 5) != 0) {
@@ -22,8 +24,8 @@ VERDICT test_blobstream(void)
     }
     count = blobstream_read(blobstr, buffer, 10);
     if (count != 6) {
-        tlog("Unexpected error %d (errno %d) from blobstream_read",
-             (int) count, (int) errno);
+        tlog("Unexpected error %d (errno %d) from blobstream_read", (int) count,
+             (int) errno);
         return FAIL;
     }
     if (strncmp(buffer, " world", 6) != 0) {
@@ -32,8 +34,8 @@ VERDICT test_blobstream(void)
     }
     count = blobstream_read(blobstr, buffer, 10);
     if (count != 0) {
-        tlog("Unexpected error %d (errno %d) from blobstream_read",
-             (int) count, (int) errno);
+        tlog("Unexpected error %d (errno %d) from blobstream_read", (int) count,
+             (int) errno);
         return FAIL;
     }
     blobstream_close(blobstr);

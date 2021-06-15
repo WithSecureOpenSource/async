@@ -1,7 +1,8 @@
-#include <stdio.h>
-#include <stdbool.h>
-#include <stdlib.h>
 #include <errno.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 #include <async/async.h>
 
 typedef struct {
@@ -15,7 +16,7 @@ typedef struct {
 } context_t;
 
 enum {
-    N = 10000000
+    N = 10000000,
 };
 
 static context_t *new_context(global_t *g, bool last)

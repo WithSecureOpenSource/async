@@ -38,8 +38,7 @@ enum {
  * at the end of the final 0 chunk size and leave the possible final
  * extensions in the stream. See chunkdecoder_leftover_bytes() below.
  */
-chunkdecoder_t *chunk_decode(async_t *async, bytestream_1 stream,
-                             int mode);
+chunkdecoder_t *chunk_decode(async_t *async, bytestream_1 stream, int mode);
 
 bytestream_1 chunkdecoder_as_bytestream_1(chunkdecoder_t *decoder);
 bytestream_2 chunkdecoder_as_bytestream_2(chunkdecoder_t *decoder);

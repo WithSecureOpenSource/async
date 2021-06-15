@@ -1,9 +1,12 @@
-#include <assert.h>
-#include <fstrace.h>
-#include <fsdyn/fsalloc.h>
-#include "blobstream.h"
 #include "jsonencoder.h"
+
+#include <assert.h>
+
+#include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
 #include "async_version.h"
+#include "blobstream.h"
 
 struct jsonencoder {
     async_t *async;
@@ -97,7 +100,7 @@ static struct bytestream_1_vt jsonencoder_vt = {
     .read = _read,
     .close = _close,
     .register_callback = _register_callback,
-    .unregister_callback = _unregister_callback
+    .unregister_callback = _unregister_callback,
 };
 
 bytestream_1 jsonencoder_as_bytestream_1(jsonencoder_t *encoder)

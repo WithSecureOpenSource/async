@@ -1,8 +1,8 @@
 #ifndef __PACER__
 #define __PACER__
 
-#include "async.h"
 #include "action_1.h"
+#include "async.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,8 +17,8 @@ typedef struct pacer_ticket pacer_ticket_t;
  * start_time is an absolute async timestamp and may be before or after
  * async_now().
  */
-pacer_t *make_pacer(async_t *async, double rate, double initial,
-                    double maximum, uint64_t start_time);
+pacer_t *make_pacer(async_t *async, double rate, double initial, double maximum,
+                    uint64_t start_time);
 
 /*
  * A pacer is disposed of with this function.

@@ -1,9 +1,11 @@
+#include "asynctest-pacerstream.h"
+
 #include <errno.h>
+
 #include <async/async.h>
 #include <async/pacerstream.h>
 #include <async/substream.h>
 #include <async/zerostream.h>
-#include "asynctest-pacerstream.h"
 
 typedef struct {
     tester_base_t base;
@@ -27,12 +29,11 @@ static void probe(tester_t *context)
     uint8_t buffer[100];
     size_t burst_size = 0;
     for (;;) {
-        ssize_t count =
-            pacerstream_read(context->pacer, buffer, sizeof buffer);
+        ssize_t count = pacerstream_read(context->pacer, buffer, sizeof buffer);
         if (count < 0) {
             if (errno != EAGAIN) {
-                tlog("Unexpected error %d (errno %d)",
-                     (int) count, (int) errno);
+                tlog("Unexpected error %d (errno %d)", (int) count,
+                     (int) errno);
                 quit_test(&context->base);
                 return;
             }
@@ -58,11 +59,11 @@ VERDICT test_pacerstream(void)
     tester_t context = {};
     init_test(&context.base, async, TOTAL_TIME + 2);
     substream_t *substr =
-        make_substream(async, zerostream, SUBSTREAM_CLOSE_AT_END,
-                       0, TOTAL_BYTE_COUNT);
+        make_substream(async, zerostream, SUBSTREAM_CLOSE_AT_END, 0,
+                       TOTAL_BYTE_COUNT);
     pacerstream_t *pacer = context.pacer =
-        pace_stream(async, substream_as_bytestream_1(substr),
-                    PACE, MIN_BURST, MAX_BURST);
+        pace_stream(async, substream_as_bytestream_1(substr), PACE, MIN_BURST,
+                    MAX_BURST);
     action_1 probe_action = (action_1) { &context, (act_1) probe };
     pacerstream_register_callback(pacer, probe_action);
     async_execute(async, probe_action);

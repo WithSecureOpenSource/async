@@ -1,5 +1,7 @@
-#include <fsdyn/fsalloc.h>
 #include "bytestream_1.h"
+
+#include <fsdyn/fsalloc.h>
+
 #include "async_version.h"
 
 static void close_stream(bytestream_1 *s)

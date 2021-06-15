@@ -1,10 +1,13 @@
+#include "pipestream.h"
+
+#include <assert.h>
 #include <errno.h>
 #include <unistd.h>
-#include <assert.h>
-#include <fstrace.h>
+
 #include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
 #include "async.h"
-#include "pipestream.h"
 #include "async_version.h"
 
 struct pipestream {
@@ -50,8 +53,7 @@ static void _close(void *obj)
 
 FSTRACE_DECL(ASYNC_PIPESTREAM_REGISTER, "UID=%64u OBJ=%p ACT=%p");
 
-void pipestream_register_callback(pipestream_t *pipestr,
-                                  action_1 action)
+void pipestream_register_callback(pipestream_t *pipestr, action_1 action)
 {
     FSTRACE(ASYNC_PIPESTREAM_REGISTER, pipestr->uid, action.obj, action.act);
     pipestr->callback = action;
@@ -105,4 +107,3 @@ pipestream_t *open_pipestream(async_t *async, int fd)
     async_register(async, fd, (action_1) { pipestr, (act_1) probe });
     return pipestr;
 }
-

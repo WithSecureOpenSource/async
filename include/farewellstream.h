@@ -28,8 +28,7 @@ farewellstream_t *open_relaxed_farewellstream(async_t *async,
 bytestream_1 farewellstream_as_bytestream_1(farewellstream_t *fwstr);
 ssize_t farewellstream_read(farewellstream_t *fwstr, void *buf, size_t count);
 void farewellstream_close(farewellstream_t *fwstr);
-void farewellstream_register_callback(farewellstream_t *fwstr,
-                                      action_1 action);
+void farewellstream_register_callback(farewellstream_t *fwstr, action_1 action);
 void farewellstream_unregister_callback(farewellstream_t *fwstr);
 
 #ifdef __cplusplus

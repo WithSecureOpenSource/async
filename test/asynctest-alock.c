@@ -1,13 +1,13 @@
 #include "asynctest-alock.h"
 
-#include <async/alock.h>
-#include <fsdyn/fsalloc.h>
-
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/file.h>
 #include <unistd.h>
+
+#include <async/alock.h>
+#include <fsdyn/fsalloc.h>
 
 typedef struct {
     tester_base_t base;
@@ -33,7 +33,8 @@ static void verify_lock_nofile(tester_t *tester)
         quit_test(&tester->base);
         return;
     }
-    tester->lock_fd = open(tester->lock_path, O_CREAT | O_TRUNC | O_WRONLY, 0644);
+    tester->lock_fd =
+        open(tester->lock_path, O_CREAT | O_TRUNC | O_WRONLY, 0644);
     if (tester->lock_fd < 0) {
         tlog("Failed to open lock file (errno %d)", errno);
         quit_test(&tester->base);

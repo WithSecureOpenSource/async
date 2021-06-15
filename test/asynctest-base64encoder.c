@@ -1,10 +1,12 @@
-#include <errno.h>
-#include <assert.h>
-#include <fsdyn/fsalloc.h>
-#include <async/nicestream.h>
-#include <async/base64encoder.h>
-#include <async/base64decoder.h>
 #include "asynctest-base64encoder.h"
+
+#include <assert.h>
+#include <errno.h>
+
+#include <async/base64decoder.h>
+#include <async/base64encoder.h>
+#include <async/nicestream.h>
+#include <fsdyn/fsalloc.h>
 
 typedef struct {
     async_t *async;
@@ -39,13 +41,9 @@ static void source_close(source_t *source)
     source->async = NULL;
 }
 
-static void source_register_callback(void *obj, action_1 action)
-{
-}
+static void source_register_callback(void *obj, action_1 action) {}
 
-static void source_unregister_callback(void *obj)
-{
-}
+static void source_unregister_callback(void *obj) {}
 
 static ssize_t _source_read(void *obj, void *buf, size_t count)
 {
@@ -71,7 +69,7 @@ static struct bytestream_1_vt source_vt = {
     .read = _source_read,
     .close = _source_close,
     .register_callback = _source_register_callback,
-    .unregister_callback = _source_unregister_callback
+    .unregister_callback = _source_unregister_callback,
 };
 
 static bytestream_1 source_as_bytestream_1(source_t *source)
@@ -101,9 +99,9 @@ static void verify_read(tester_t *tester)
     if (count == 0) {
         if (tester->cursor != tester->size)
             tlog("Final byte count %lu != %lu (expected)",
-                 (unsigned long) tester->cursor,
-                 (unsigned long) tester->size);
-        else tester->base.verdict = PASS;
+                 (unsigned long) tester->cursor, (unsigned long) tester->size);
+        else
+            tester->base.verdict = PASS;
         bytestream_1_close(tester->material);
         quit_test(&tester->base);
         return;
@@ -113,8 +111,8 @@ static void verify_read(tester_t *tester)
         if (buffer[i] != (uint8_t) tester->cursor++) {
             tester->cursor--;
             tlog("Bad byte at %lu: %u != %u (expected)",
-                 (unsigned long) tester->cursor,
-                 buffer[i], (uint8_t) tester->cursor);
+                 (unsigned long) tester->cursor, buffer[i],
+                 (uint8_t) tester->cursor);
             quit_test(&tester->base);
             return;
         }
@@ -130,8 +128,8 @@ VERDICT test_base64encoder(void)
     nicestream_t *nicestr1 =
         make_nice(async, source_as_bytestream_1(source), 113);
     base64encoder_t *encoder =
-        base64_encode(async, nicestream_as_bytestream_1(nicestr1),
-                      '.', '_', true, '-');
+        base64_encode(async, nicestream_as_bytestream_1(nicestr1), '.', '_',
+                      true, '-');
     nicestream_t *nicestr2 =
         make_nice(async, base64encoder_as_bytestream_1(encoder), 91);
     base64decoder_t *decoder =

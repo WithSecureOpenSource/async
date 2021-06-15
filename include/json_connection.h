@@ -1,9 +1,10 @@
 #ifndef __JSON_CONNECTION_H__
 #define __JSON_CONNECTION_H__
 
+#include <encjson.h>
+
 #include "async.h"
 #include "tcp_connection.h"
-#include <encjson.h>
 
 #ifdef __cplusplus
 extern "C" {

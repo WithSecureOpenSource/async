@@ -1,8 +1,10 @@
 #ifndef __ASYNC__
 #define __ASYNC__
 
-#include <fsdyn/fsalloc.h>
 #include <stdint.h>
+
+#include <fsdyn/fsalloc.h>
+
 #include "action_1.h"
 
 #ifdef __cplusplus
@@ -62,13 +64,13 @@ void destroy_async(async_t *async);
  */
 uint64_t async_now(async_t *async);
 
-#define ASYNC_NS ((int64_t) 1)
-#define ASYNC_US (1000 * ASYNC_NS)
-#define ASYNC_MS (1000 * ASYNC_US)
-#define ASYNC_S (1000 * ASYNC_MS)
-#define ASYNC_MIN (60 * ASYNC_S)
-#define ASYNC_H (60 * ASYNC_MIN)
-#define ASYNC_DAY (24 * ASYNC_H)
+#define ASYNC_NS   ((int64_t) 1)
+#define ASYNC_US   (1000 * ASYNC_NS)
+#define ASYNC_MS   (1000 * ASYNC_US)
+#define ASYNC_S    (1000 * ASYNC_MS)
+#define ASYNC_MIN  (60 * ASYNC_S)
+#define ASYNC_H    (60 * ASYNC_MIN)
+#define ASYNC_DAY  (24 * ASYNC_H)
 #define ASYNC_WEEK (7 * ASYNC_DAY)
 
 /*
@@ -190,9 +192,8 @@ int async_loop(async_t *async);
  *  - async_poll()
  *  - destroy_async()
  */
-int async_loop_protected(async_t *async,
-                         void (*lock)(void *), void (*unlock)(void *),
-                         void *lock_data);
+int async_loop_protected(async_t *async, void (*lock)(void *),
+                         void (*unlock)(void *), void *lock_data);
 
 /*
  * This function causes async_loop() or async_loop_protected() to return
@@ -246,8 +247,7 @@ int async_register_old_school(async_t *async, int fd, action_1 action);
  *
  * A negative return value indicates an error (consult errno).
  */
-int async_modify_old_school(async_t *async, int fd,
-                            int readable, int writable);
+int async_modify_old_school(async_t *async, int fd, int readable, int writable);
 
 /*
  * Stop monitoring a file descriptor.
@@ -316,7 +316,7 @@ public:
     virtual ~ProxyVariant()
     {
         data_->action = NULL_ACTION_1;
-        async_execute(data_->async, (action_1) { data_, (act_1)destroy_data });
+        async_execute(data_->async, (action_1) { data_, (act_1) destroy_data });
     }
 
     ProxyVariant(const ProxyVariant &) = delete;
@@ -324,7 +324,7 @@ public:
     ProxyVariant &operator=(const ProxyVariant &) = delete;
     ProxyVariant &operator=(ProxyVariant &&) = delete;
 
-    action_1 get_callback() { return { data_, (act_1)action_cb }; }
+    action_1 get_callback() { return { data_, (act_1) action_cb }; }
 
 private:
     ProxyVariant(async_t *async)
@@ -366,7 +366,7 @@ class Proxy {
 public:
     Proxy(async_t *async, action_1 action)
     {
-        data_ = (Data *)fsalloc(sizeof *data_);
+        data_ = (Data *) fsalloc(sizeof *data_);
         data_->async = async;
         data_->action = action;
     }
@@ -382,7 +382,7 @@ public:
     Proxy &operator=(const Proxy &) = delete;
     Proxy &operator=(Proxy &&) = delete;
 
-    action_1 get_callback() { return { data_, (act_1)action_cb }; }
+    action_1 get_callback() { return { data_, (act_1) action_cb }; }
 
 private:
     Data *data_;

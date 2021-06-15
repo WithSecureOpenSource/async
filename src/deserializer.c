@@ -1,14 +1,14 @@
 #include "deserializer.h"
 
-#include "async_version.h"
-#include "queuestream.h"
+#include <assert.h>
+#include <errno.h>
+#include <unistd.h>
 
 #include <fsdyn/fsalloc.h>
 #include <fstrace.h>
 
-#include <assert.h>
-#include <errno.h>
-#include <unistd.h>
+#include "async_version.h"
+#include "queuestream.h"
 
 typedef enum {
     DESERIALIZER_CLEAN_BREAK,    /* no outstanding frame */
@@ -64,12 +64,8 @@ FSTRACE_DECL(ASYNC_DESERIALIZER_SET_STATE, "UID=%64u OLD=%I NEW=%I");
 static void set_deserializer_state(deserializer_t *deserializer,
                                    deserializer_state_t state)
 {
-    FSTRACE(ASYNC_DESERIALIZER_SET_STATE,
-            deserializer->uid,
-            trace_state,
-            &deserializer->state,
-            trace_state,
-            &state);
+    FSTRACE(ASYNC_DESERIALIZER_SET_STATE, deserializer->uid, trace_state,
+            &deserializer->state, trace_state, &state);
     deserializer->state = state;
 }
 
@@ -157,9 +153,7 @@ FSTRACE_DECL(ASYNC_DESERIALIZER_REGISTER_FRAME, "UID=%64u OBJ=%p ACT=%p");
 static void frame_register_callback(void *obj, action_1 action)
 {
     deserializer_t *deserializer = obj;
-    FSTRACE(ASYNC_DESERIALIZER_REGISTER_FRAME,
-            deserializer->uid,
-            action.obj,
+    FSTRACE(ASYNC_DESERIALIZER_REGISTER_FRAME, deserializer->uid, action.obj,
             action.act);
     if (deserializer->state == DESERIALIZER_READING_FRAME)
         bytestream_2_register_callback(deserializer->decoder, action);
@@ -184,19 +178,14 @@ static const struct bytestream_1_vt frame_vt = {
 
 FSTRACE_DECL(ASYNC_DESERIALIZER_CREATE, "UID=%64u PTR=%p ASYNC=%p SOURCE=%p");
 
-deserializer_t *open_deserializer(async_t *async,
-                                  bytestream_1 source,
-                                  decoder_factory_t factory,
-                                  void *factory_obj)
+deserializer_t *open_deserializer(async_t *async, bytestream_1 source,
+                                  decoder_factory_t factory, void *factory_obj)
 {
     deserializer_t *deserializer = fsalloc(sizeof *deserializer);
     deserializer->state = DESERIALIZER_CLEAN_BREAK;
     deserializer->async = async;
     deserializer->uid = fstrace_get_unique_id();
-    FSTRACE(ASYNC_DESERIALIZER_CREATE,
-            deserializer->uid,
-            deserializer,
-            async,
+    FSTRACE(ASYNC_DESERIALIZER_CREATE, deserializer->uid, deserializer, async,
             source.obj);
     deserializer->callback = NULL_ACTION_1;
     deserializer->source = make_queuestream(async);
@@ -314,9 +303,7 @@ FSTRACE_DECL(ASYNC_DESERIALIZER_REGISTER, "UID=%64u OBJ=%p ACT=%p");
 void deserializer_register_callback(deserializer_t *deserializer,
                                     action_1 action)
 {
-    FSTRACE(ASYNC_DESERIALIZER_REGISTER,
-            deserializer->uid,
-            action.obj,
+    FSTRACE(ASYNC_DESERIALIZER_REGISTER, deserializer->uid, action.obj,
             action.act);
     deserializer->callback = action;
 }

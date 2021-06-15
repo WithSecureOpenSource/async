@@ -1,7 +1,9 @@
+#include "asynctest-drystream.h"
+
 #include <errno.h>
+
 #include <async/async.h>
 #include <async/drystream.h>
-#include "asynctest-drystream.h"
 
 static void dry_probe(tester_base_t *context)
 {

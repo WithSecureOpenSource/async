@@ -1,12 +1,15 @@
+#include "stringstream.h"
+
+#include <assert.h>
 #include <errno.h>
 #include <string.h>
-#include <assert.h>
-#include <fstrace.h>
+
 #include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
 #include "async.h"
-#include "stringstream.h"
-#include "blobstream.h"
 #include "async_version.h"
+#include "blobstream.h"
 
 struct stringstream {
     async_t *async;

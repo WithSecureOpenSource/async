@@ -14,15 +14,13 @@ typedef struct concatstream concatstream_t;
  * Open a stream that is the concatenation of the given streams, in the
  * given order. The count may be zero.
  */
-concatstream_t *concatenate_streams(async_t *async,
-                                    bytestream_1 streams[], size_t count);
+concatstream_t *concatenate_streams(async_t *async, bytestream_1 streams[],
+                                    size_t count);
 
-concatstream_t *concatenate_two_streams(async_t *async,
-                                        bytestream_1 first,
+concatstream_t *concatenate_two_streams(async_t *async, bytestream_1 first,
                                         bytestream_1 second);
 
-concatstream_t *concatenate_three_streams(async_t *async,
-                                          bytestream_1 first,
+concatstream_t *concatenate_three_streams(async_t *async, bytestream_1 first,
                                           bytestream_1 second,
                                           bytestream_1 third);
 

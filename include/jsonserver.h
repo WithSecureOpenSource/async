@@ -1,8 +1,9 @@
 #ifndef ASYNC_JSONSERVER_H
 #define ASYNC_JSONSERVER_H
 
-#include "tcp_connection.h"
 #include <encjson.h>
+
+#include "tcp_connection.h"
 
 #ifdef __cplusplus
 extern "C" {

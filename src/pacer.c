@@ -1,8 +1,11 @@
+#include "pacer.h"
+
 #include <assert.h>
-#include <fstrace.h>
+
 #include <fsdyn/fsalloc.h>
 #include <fsdyn/list.h>
-#include "pacer.h"
+#include <fstrace.h>
+
 #include "async_version.h"
 
 struct pacer {
@@ -25,8 +28,8 @@ struct pacer_ticket {
 FSTRACE_DECL(ASYNC_PACER_CREATE,
              "UID=%64u PTR=%p ASYNC=%p RATE=%f INIT=%f MAX=%f START=%64u");
 
-pacer_t *make_pacer(async_t *async, double rate, double initial,
-                    double maximum, uint64_t start_time)
+pacer_t *make_pacer(async_t *async, double rate, double initial, double maximum,
+                    uint64_t start_time)
 {
     pacer_t *pacer = fsalloc(sizeof *pacer);
     pacer->async = async;
@@ -80,12 +83,11 @@ static void start_timer(pacer_ticket_t *ticket, double amount, uint64_t now)
         if (time_to_wait > MAX_WAIT)
             time_to_wait = MAX_WAIT;
     }
-    if (time_to_wait < 0)       /* guard against uint64_t underflow */
+    if (time_to_wait < 0) /* guard against uint64_t underflow */
         time_to_wait = 0;
-    pacer->timer =
-        async_timer_start(pacer->async,
-                          now + (uint64_t) (time_to_wait * ASYNC_S),
-                          (action_1) { pacer, (act_1) pacer_probe });
+    pacer->timer = async_timer_start(pacer->async,
+                                     now + (uint64_t)(time_to_wait * ASYNC_S),
+                                     (action_1) { pacer, (act_1) pacer_probe });
 }
 
 FSTRACE_DECL(ASYNC_PACER_PROBE, "UID=%64u");
@@ -106,8 +108,8 @@ static void pacer_probe(pacer_t *pacer)
             break;
         }
         pacer->timer = NULL;
-        FSTRACE(ASYNC_PACER_TRIGGER, pacer->uid, ticket->uid,
-                ticket->probe.obj, ticket->probe.act);
+        FSTRACE(ASYNC_PACER_TRIGGER, pacer->uid, ticket->uid, ticket->probe.obj,
+                ticket->probe.act);
         action_1_perf(ticket->probe); /* typically calls pacer_get() */
         fsfree(ticket);
     } while (pacer->timer == NULL && !list_empty(pacer->queue));

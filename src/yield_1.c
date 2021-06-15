@@ -1,5 +1,7 @@
-#include <fsdyn/fsalloc.h>
 #include "yield_1.h"
+
+#include <fsdyn/fsalloc.h>
+
 #include "async_version.h"
 
 static void close_yield(yield_1 *s)

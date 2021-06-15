@@ -1,9 +1,12 @@
-#include <errno.h>
-#include <assert.h>
-#include <fstrace.h>
-#include <fsdyn/fsalloc.h>
-#include "async.h"
 #include "pacerstream.h"
+
+#include <assert.h>
+#include <errno.h>
+
+#include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
+#include "async.h"
 #include "async_version.h"
 
 struct pacerstream {
@@ -47,8 +50,8 @@ ssize_t pacerstream_read(pacerstream_t *pacer, void *buf, size_t count)
         pacer->quota = pacer->max_burst;
     pacer->prev_t = t;
     if (pacer->quota < pacer->min_burst) {
-        uint64_t delay = (uint64_t) \
-            ((pacer->min_burst - pacer->quota) / pacer->byterate * 1e+09);
+        uint64_t delay = (uint64_t)((pacer->min_burst - pacer->quota) /
+                                    pacer->byterate * 1e+09);
         pacer->retry_timer =
             async_timer_start(pacer->async, t + delay,
                               (action_1) { pacer, (act_1) retry });
@@ -132,8 +135,8 @@ bytestream_1 pacerstream_as_bytestream_1(pacerstream_t *pacer)
 FSTRACE_DECL(ASYNC_PACESTREAM_CREATE,
              "UID=%64u PTR=%p ASYNC=%p STREAM=%p RATE=%f MIN=%z MAX=%z");
 
-pacerstream_t *pace_stream(async_t *async, bytestream_1 stream,
-                           double byterate, size_t min_burst, size_t max_burst)
+pacerstream_t *pace_stream(async_t *async, bytestream_1 stream, double byterate,
+                           size_t min_burst, size_t max_burst)
 {
     pacerstream_t *pacer = fsalloc(sizeof *pacer);
     pacer->async = async;
@@ -144,7 +147,8 @@ pacerstream_t *pace_stream(async_t *async, bytestream_1 stream,
     pacer->byterate = byterate;
     if (min_burst < 1)
         pacer->min_burst = 1;
-    else pacer->min_burst = min_burst;
+    else
+        pacer->min_burst = min_burst;
     pacer->max_burst = max_burst;
     pacer->callback = NULL_ACTION_1;
     pacer->retry_timer = NULL;

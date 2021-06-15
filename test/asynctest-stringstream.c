@@ -1,8 +1,10 @@
+#include "asynctest-stringstream.h"
+
 #include <errno.h>
 #include <string.h>
+
 #include <async/async.h>
 #include <async/stringstream.h>
-#include "asynctest-stringstream.h"
 
 VERDICT test_stringstream(void)
 {

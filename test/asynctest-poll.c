@@ -1,12 +1,14 @@
-#include <fcntl.h>
-#include <unistd.h>
+#include "asynctest-poll.h"
+
 #include <assert.h>
 #include <errno.h>
-#include <sys/un.h>
+#include <fcntl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+
 #include <async/async.h>
-#include "asynctest-poll.h"
 
 static int nonblock(int fd)
 {
@@ -70,8 +72,8 @@ static void probe_it(tester_t *context)
         case WRITING:
             count = write(context->sd[0], buffer, 1);
             if (count != 1) {
-                tlog("Write returned %d (errno = %d)",
-                     (int) count, (int) errno);
+                tlog("Write returned %d (errno = %d)", (int) count,
+                     (int) errno);
                 return;
             }
             context->state = DONE;
@@ -146,4 +148,3 @@ VERDICT test_async_poll(void)
     destroy_async(async);
     return posttest_check(context.base.verdict);
 }
-
