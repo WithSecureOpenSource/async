@@ -1,12 +1,15 @@
+#include "naiveframer.h"
+
+#include <assert.h>
 #include <errno.h>
 #include <unistd.h>
-#include <assert.h>
-#include <fstrace.h>
+
 #include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
+#include "async_version.h"
 #include "deserializer.h"
 #include "naivedecoder.h"
-#include "naiveframer.h"
-#include "async_version.h"
 
 struct naiveframer {
     async_t *async;
@@ -18,11 +21,9 @@ struct naiveframer {
 static bytestream_2 open_decoder(void *obj, bytestream_1 source)
 {
     naiveframer_t *framer = obj;
-    naivedecoder_t *decoder = naive_decode(framer->async,
-                                           source,
-                                           NAIVEDECODER_DETACH,
-                                           framer->terminator,
-                                           framer->escape);
+    naivedecoder_t *decoder =
+        naive_decode(framer->async, source, NAIVEDECODER_DETACH,
+                     framer->terminator, framer->escape);
     return naivedecoder_as_bytestream_2(decoder);
 }
 
@@ -100,7 +101,7 @@ static const struct yield_1_vt naiveframer_vt = {
     .receive = _receive,
     .close = _close,
     .register_callback = _register_callback,
-    .unregister_callback = _unregister_callback
+    .unregister_callback = _unregister_callback,
 };
 
 yield_1 naiveframer_as_yield_1(naiveframer_t *framer)

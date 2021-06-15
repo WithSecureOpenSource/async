@@ -1,16 +1,19 @@
-#include <errno.h>
-#include <string.h>
-#include <assert.h>
-#include <async/async.h>
-#include <async/chunkdecoder.h>
-#include <async/chunkencoder.h>
-#include <async/stringstream.h>
-#include <async/blobstream.h>
-#include <async/concatstream.h>
-#include <async/queuestream.h>
 #include "asynctest-chunkdecoder.h"
 
-static const char *chunk_data = "SMS Prinzregent Luitpold was the fifth and "
+#include <assert.h>
+#include <errno.h>
+#include <string.h>
+
+#include <async/async.h>
+#include <async/blobstream.h>
+#include <async/chunkdecoder.h>
+#include <async/chunkencoder.h>
+#include <async/concatstream.h>
+#include <async/queuestream.h>
+#include <async/stringstream.h>
+
+static const char *chunk_data =
+    "SMS Prinzregent Luitpold was the fifth and "
     "final vessel of the Kaiser class of battleships of the Imperial"
     " German Navy. Prinzregent Luitpold's keel was laid in October 1910"
     " at the Germaniawerft dockyard in Kiel. She was launched on 17"
@@ -26,10 +29,10 @@ static const char *chunk_data = "SMS Prinzregent Luitpold was the fifth and "
     " Riga, in late 1917.";
 
 static const char *trailer = "One: one\r\n"
-    "Two: one \r\n"
-    "\ttwo\r\n"
-    "Three: three\r\n"
-    "\r\n";
+                             "Two: one \r\n"
+                             "\ttwo\r\n"
+                             "Three: three\r\n"
+                             "\r\n";
 
 enum {
     CHUNK_READING_LENGTH,
@@ -86,8 +89,8 @@ static VERDICT test_skip_null_trailer(size_t chunk_size, size_t read_size)
     }
     count = chunkdecoder_read(decoder, buffer, sizeof buffer);
     if (count < 0) {
-        tlog("Unexpected error %d (errno %d) from chunkdecoder",
-             (int) count, (int) errno);
+        tlog("Unexpected error %d (errno %d) from chunkdecoder", (int) count,
+             (int) errno);
         return FAIL;
     }
     if (count > 0) {
@@ -108,8 +111,7 @@ static VERDICT test_skip_real_trailer(size_t chunk_size, size_t read_size)
                        chunk_size, 1);
     stringstr = open_stringstream(async, trailer);
     concatstream_t *conc =
-        concatenate_two_streams(async,
-                                chunkencoder_as_bytestream_1(encoder),
+        concatenate_two_streams(async, chunkencoder_as_bytestream_1(encoder),
                                 stringstream_as_bytestream_1(stringstr));
     chunkdecoder_t *decoder =
         chunk_decode(async, concatstream_as_bytestream_1(conc),
@@ -143,8 +145,8 @@ static VERDICT test_skip_real_trailer(size_t chunk_size, size_t read_size)
     }
     count = chunkdecoder_read(decoder, buffer, sizeof buffer);
     if (count < 0) {
-        tlog("Unexpected error %d (errno %d) from chunkdecoder",
-             (int) count, (int) errno);
+        tlog("Unexpected error %d (errno %d) from chunkdecoder", (int) count,
+             (int) errno);
         return FAIL;
     }
     if (count > 0) {
@@ -162,9 +164,9 @@ static VERDICT check_trailer(bytestream_1 stream, const char *trailer)
     char trailer_buffer[trailer_size + 1];
     size_t trailer_count = 0;
     while (trailer_count < trailer_size + 1) {
-        ssize_t count = bytestream_1_read(stream,
-                                          trailer_buffer + trailer_count,
-                                          trailer_size + 1 - trailer_count);
+        ssize_t count =
+            bytestream_1_read(stream, trailer_buffer + trailer_count,
+                              trailer_size + 1 - trailer_count);
         if (count < 0) {
             tlog("Unexpected error %d (errno %d) from trailer stream",
                  (int) count, (int) errno);
@@ -229,8 +231,8 @@ static VERDICT test_read_real_trailer(size_t chunk_size, size_t read_size)
     }
     count = chunkdecoder_read(decoder, buffer, sizeof buffer);
     if (count < 0) {
-        tlog("Unexpected error %d (errno %d) from chunkdecoder",
-             (int) count, (int) errno);
+        tlog("Unexpected error %d (errno %d) from chunkdecoder", (int) count,
+             (int) errno);
         return FAIL;
     }
     if (count > 0) {
@@ -265,7 +267,6 @@ static VERDICT check_asterisk_after_trailer(bytestream_1 stream)
     if (c != '*') {
         tlog("Unexpected content after trailer");
         return FAIL;
-
     }
     return PASS;
 }
@@ -316,8 +317,8 @@ static VERDICT test_detach_after_trailer(size_t chunk_size, size_t read_size)
     }
     count = chunkdecoder_read(decoder, buffer, sizeof buffer);
     if (count < 0) {
-        tlog("Unexpected error %d (errno %d) from chunkdecoder",
-             (int) count, (int) errno);
+        tlog("Unexpected error %d (errno %d) from chunkdecoder", (int) count,
+             (int) errno);
         return FAIL;
     }
     if (count > 0) {

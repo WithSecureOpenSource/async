@@ -1,13 +1,13 @@
-#include "asynctest.h"
+#include <errno.h>
+#include <netinet/in.h>
+#include <string.h>
 
 #include <async/async.h>
 #include <async/fsadns.h>
 #include <fsdyn/fsalloc.h>
 #include <fsdyn/list.h>
 
-#include <errno.h>
-#include <netinet/in.h>
-#include <string.h>
+#include "asynctest.h"
 
 typedef struct {
     tester_base_t base;
@@ -32,9 +32,8 @@ static void dump_address(const struct addrinfo *res)
                 uint32_t quad = ntohl(ipv4->sin_addr.s_addr);
                 uint16_t port = ntohs(ipv4->sin_port);
                 char buf[64];
-                snprintf(buf, sizeof buf, "%d.%d.%d.%d",
-                         quad >> 24 & 0xff, quad >> 16 & 0xff,
-                         quad >> 8 & 0xff, quad & 0xff);
+                snprintf(buf, sizeof buf, "%d.%d.%d.%d", quad >> 24 & 0xff,
+                         quad >> 16 & 0xff, quad >> 8 & 0xff, quad & 0xff);
                 if (port)
                     tlog("  addr (IPv4) = %s/%d", buf, port);
                 else
@@ -44,15 +43,12 @@ static void dump_address(const struct addrinfo *res)
             case AF_INET6: {
                 const struct sockaddr_in6 *ipv6 =
                     (const struct sockaddr_in6 *) res->ai_addr;
-                const uint16_t *a =
-                    (const uint16_t *) ipv6->sin6_addr.s6_addr;
+                const uint16_t *a = (const uint16_t *) ipv6->sin6_addr.s6_addr;
                 uint16_t port = ntohs(ipv6->sin6_port);
                 char buf[64];
                 snprintf(buf, sizeof buf, "%x:%x:%x:%x:%x:%x:%x:%x",
-                         ntohs(a[0]), ntohs(a[1]),
-                         ntohs(a[2]), ntohs(a[3]),
-                         ntohs(a[4]), ntohs(a[5]),
-                         ntohs(a[6]), ntohs(a[7]));
+                         ntohs(a[0]), ntohs(a[1]), ntohs(a[2]), ntohs(a[3]),
+                         ntohs(a[4]), ntohs(a[5]), ntohs(a[6]), ntohs(a[7]));
                 if (port)
                     tlog("  addr (IPv6) = %s/%d", buf, port);
                 else
@@ -203,9 +199,7 @@ static void dump_query_failure(const char *hostname, int err)
     if (err == EAI_SYSTEM)
         tlog("%s failed to resolve; error = %s", hostname, strerror(errno));
     else
-        tlog("%s failed to resolve; error = %s",
-             hostname,
-             gai_strerror(err));
+        tlog("%s failed to resolve; error = %s", hostname, gai_strerror(err));
     tlog_string("");
 }
 
@@ -289,10 +283,8 @@ static void probe_name_query(query_t *query)
     fsfree(query);
 }
 
-static void make_name_query(global_t *g,
-                            const char *address,
-                            const struct sockaddr *addr,
-                            socklen_t addrlen)
+static void make_name_query(global_t *g, const char *address,
+                            const struct sockaddr *addr, socklen_t addrlen)
 {
     query_t *query = fsalloc(sizeof *query);
     query->g = g;
@@ -313,35 +305,23 @@ static void kick_off(global_t *g)
     struct sockaddr_in gdns_addr = {
         .sin_family = AF_INET,
         .sin_port = htons(53),
-        .sin_addr = {
-            .s_addr = htonl(0x08080808)
-        }
+        .sin_addr = { .s_addr = htonl(0x08080808) },
     };
-    make_name_query(g,
-                    "8.8.8.8",
-                    (struct sockaddr *) &gdns_addr,
+    make_name_query(g, "8.8.8.8", (struct sockaddr *) &gdns_addr,
                     sizeof gdns_addr);
     struct sockaddr_in local_addr = {
         .sin_family = AF_INET,
         .sin_port = htons(0),
-        .sin_addr = {
-            .s_addr = htonl(0x7f000001)
-        }
+        .sin_addr = { .s_addr = htonl(0x7f000001) },
     };
-    make_name_query(g,
-                    "127.0.0.1",
-                    (struct sockaddr *) &local_addr,
+    make_name_query(g, "127.0.0.1", (struct sockaddr *) &local_addr,
                     sizeof local_addr);
     struct sockaddr_in bc_addr = {
         .sin_family = AF_INET,
         .sin_port = htons(0),
-        .sin_addr = {
-            .s_addr = htonl(0xffffffff)
-        }
+        .sin_addr = { .s_addr = htonl(0xffffffff) },
     };
-    make_name_query(g,
-                    "255.255.255.255",
-                    (struct sockaddr *) &bc_addr,
+    make_name_query(g, "255.255.255.255", (struct sockaddr *) &bc_addr,
                     sizeof bc_addr);
 }
 

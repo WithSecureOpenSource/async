@@ -1,16 +1,16 @@
 #include "multipartdecoder.h"
 
-#include "async_version.h"
+#include <assert.h>
+#include <errno.h>
+#include <string.h>
+#include <unistd.h>
 
 #include <fsdyn/bytearray.h>
 #include <fsdyn/charstr.h>
 #include <fsdyn/fsalloc.h>
 #include <fstrace.h>
 
-#include <assert.h>
-#include <errno.h>
-#include <string.h>
-#include <unistd.h>
+#include "async_version.h"
 
 typedef enum {
     MULTIPARTDECODER_READING_DASH_BOUNDARY,
@@ -45,21 +45,15 @@ struct multipartdecoder {
 FSTRACE_DECL(ASYNC_MULTIPARTDECODER_CREATE,
              "UID=%64u PTR=%p ASYNC=%p SOURCE=%p BOUNDARY=%s");
 
-multipartdecoder_t *multipart_decode(async_t *async,
-                                     bytestream_1 source,
-                                     const char *boundary,
-                                     bool first_part)
+multipartdecoder_t *multipart_decode(async_t *async, bytestream_1 source,
+                                     const char *boundary, bool first_part)
 {
     multipartdecoder_t *decoder = fsalloc(sizeof *decoder);
     decoder->async = async;
     decoder->uid = fstrace_get_unique_id();
     decoder->pending_errno = 0;
-    FSTRACE(ASYNC_MULTIPARTDECODER_CREATE,
-            decoder->uid,
-            decoder,
-            async,
-            source.obj,
-            boundary);
+    FSTRACE(ASYNC_MULTIPARTDECODER_CREATE, decoder->uid, decoder, async,
+            source.obj, boundary);
     decoder->source = source;
     decoder->callback = NULL_ACTION_1;
     decoder->delimiter = charstr_printf("\r\n--%s", boundary);
@@ -116,19 +110,14 @@ FSTRACE_DECL(ASYNC_MULTIPARTDECODER_SET_STATE, "UID=%64u OLD=%I NEW=%I");
 static void set_decoder_state(multipartdecoder_t *decoder,
                               multipartdecoder_state_t state)
 {
-    FSTRACE(ASYNC_MULTIPARTDECODER_SET_STATE,
-            decoder->uid,
-            trace_state,
-            &decoder->state,
-            trace_state,
-            &state);
+    FSTRACE(ASYNC_MULTIPARTDECODER_SET_STATE, decoder->uid, trace_state,
+            &decoder->state, trace_state, &state);
     decoder->state = state;
 }
 
 static ssize_t skip_data(multipartdecoder_t *decoder)
 {
-    ssize_t count = bytestream_1_read(decoder->source,
-                                      decoder->buffer,
+    ssize_t count = bytestream_1_read(decoder->source, decoder->buffer,
                                       sizeof decoder->buffer);
     if (count < 0)
         return -1;
@@ -196,8 +185,7 @@ static void read_symbol(multipartdecoder_t *decoder, char c)
                 case '\t':
                     break;
                 case '\r':
-                    set_decoder_state(decoder,
-                                      MULTIPARTDECODER_AFTER_FIRST_CR);
+                    set_decoder_state(decoder, MULTIPARTDECODER_AFTER_FIRST_CR);
                     break;
                 default:
                     set_decoder_state(decoder, MULTIPARTDECODER_ERRORED);
@@ -231,8 +219,7 @@ static void read_symbol(multipartdecoder_t *decoder, char c)
                  */
                 decoder->output_cursor = 0;
                 byte_array_clear(decoder->output_buffer);
-                byte_array_append(decoder->output_buffer,
-                                  decoder->delimiter,
+                byte_array_append(decoder->output_buffer, decoder->delimiter,
                                   decoder->delimiter_cursor);
                 decoder->delimiter_cursor = 0;
                 if (c == decoder->delimiter[0])
@@ -327,8 +314,7 @@ static ssize_t do_read(multipartdecoder_t *decoder, void *buf, size_t size)
     char *ptr = buf;
     while (cursor < size) {
         if (decoder->low >= decoder->high) {
-            ssize_t count = bytestream_1_read(decoder->source,
-                                              decoder->buffer,
+            ssize_t count = bytestream_1_read(decoder->source, decoder->buffer,
                                               sizeof decoder->buffer);
             if (count < 0) {
                 if (!cursor)
@@ -341,15 +327,12 @@ static ssize_t do_read(multipartdecoder_t *decoder, void *buf, size_t size)
                 errno = EPROTO;
                 return -1;
             }
-            FSTRACE(ASYNC_MULTIPARTDECODER_INPUT_DUMP,
-                    decoder->uid,
-                    decoder->buffer,
-                    count);
+            FSTRACE(ASYNC_MULTIPARTDECODER_INPUT_DUMP, decoder->uid,
+                    decoder->buffer, count);
             decoder->low = 0;
             decoder->high = count;
         }
-        if (decoder->output_cursor <
-            byte_array_size(decoder->output_buffer)) {
+        if (decoder->output_cursor < byte_array_size(decoder->output_buffer)) {
             const char *data = byte_array_data(decoder->output_buffer);
             ptr[cursor++] = data[decoder->output_cursor++];
         } else {
@@ -378,8 +361,7 @@ static ssize_t do_read(multipartdecoder_t *decoder, void *buf, size_t size)
 FSTRACE_DECL(ASYNC_MULTIPARTDECODER_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
 FSTRACE_DECL(ASYNC_MULTIPARTDECODER_READ_DUMP, "UID=%64u DATA=%B");
 
-ssize_t multipartdecoder_read(multipartdecoder_t *decoder,
-                              void *buf,
+ssize_t multipartdecoder_read(multipartdecoder_t *decoder, void *buf,
                               size_t size)
 {
     ssize_t count = do_read(decoder, buf, size);

@@ -1,20 +1,23 @@
-#include <stdlib.h>
-#include <stdbool.h>
-#include <errno.h>
+#include "queuestream.h"
+
 #include <assert.h>
-#include <fstrace.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <stdlib.h>
+
 #include <fsdyn/fsalloc.h>
 #include <fsdyn/list.h>
+#include <fstrace.h>
+
 #include "async.h"
-#include "blobstream.h"
-#include "queuestream.h"
 #include "async_version.h"
+#include "blobstream.h"
 
 struct queuestream {
     async_t *async;
     uint64_t uid;
-    int pending_errno;          /* or 0 */
-    list_t *queue;              /* of bytestream_1 */
+    int pending_errno; /* or 0 */
+    list_t *queue;     /* of bytestream_1 */
     bool terminated, closed, released;
     action_1 notifier;
     bool notification_expected;
@@ -110,8 +113,7 @@ void queuestream_push(queuestream_t *qstr, bytestream_1 stream)
 
 FSTRACE_DECL(ASYNC_QUEUESTREAM_ENQUEUE_BYTES, "UID=%64u DATA=%A");
 
-void queuestream_enqueue_bytes(queuestream_t *qstr,
-                               const void *blob,
+void queuestream_enqueue_bytes(queuestream_t *qstr, const void *blob,
                                size_t count)
 {
     FSTRACE(ASYNC_QUEUESTREAM_ENQUEUE_BYTES, qstr->uid, blob, count);
@@ -121,9 +123,7 @@ void queuestream_enqueue_bytes(queuestream_t *qstr,
 
 FSTRACE_DECL(ASYNC_QUEUESTREAM_PUSH_BYTES, "UID=%64u DATA=%A");
 
-void queuestream_push_bytes(queuestream_t *qstr,
-                            const void *blob,
-                            size_t count)
+void queuestream_push_bytes(queuestream_t *qstr, const void *blob, size_t count)
 {
     FSTRACE(ASYNC_QUEUESTREAM_PUSH_BYTES, qstr->uid, blob, count);
     blobstream_t *blobstr = copy_blobstream(qstr->async, blob, count);
@@ -211,8 +211,7 @@ void queuestream_close(queuestream_t *qstr)
     assert(!qstr->closed);
     while (!list_empty(qstr->queue)) {
         list_elem_t *head_elem = list_get_first(qstr->queue);
-        bytestream_1 *head =
-            (bytestream_1 *) list_elem_get_value(head_elem);
+        bytestream_1 *head = (bytestream_1 *) list_elem_get_value(head_elem);
         bytestream_1_close(*head);
         fsfree(head);
         list_remove(qstr->queue, head_elem);

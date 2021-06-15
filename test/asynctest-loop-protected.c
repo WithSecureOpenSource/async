@@ -1,10 +1,10 @@
 #include "asynctest-loop-protected.h"
 
-#include <async/async.h>
-
 #include <errno.h>
 #include <pthread.h>
 #include <unistd.h>
+
+#include <async/async.h>
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 

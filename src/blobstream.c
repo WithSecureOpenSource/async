@@ -1,10 +1,13 @@
+#include "blobstream.h"
+
+#include <assert.h>
 #include <errno.h>
 #include <string.h>
+
 #include <fsdyn/fsalloc.h>
 #include <fstrace.h>
-#include <assert.h>
+
 #include "async.h"
-#include "blobstream.h"
 #include "async_version.h"
 
 struct blobstream {

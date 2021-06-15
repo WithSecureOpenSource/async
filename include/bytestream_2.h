@@ -1,10 +1,10 @@
 #ifndef __BYTESTREAM_2__
 #define __BYTESTREAM_2__
 
+#include <sys/types.h>
+
 #include "action_1.h"
 #include "async.h"
-
-#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,50 +71,44 @@ struct bytestream_2_vt {
     void *(*leftover_bytes)(void *obj);
 };
 
-static inline
-ssize_t bytestream_2_read(bytestream_2 stream, void *buf, size_t count)
+static inline ssize_t bytestream_2_read(bytestream_2 stream, void *buf,
+                                        size_t count)
 {
     return stream.vt->read(stream.obj, buf, count);
 }
 
-static inline
-void bytestream_2_close(bytestream_2 stream)
+static inline void bytestream_2_close(bytestream_2 stream)
 {
     stream.vt->close(stream.obj);
 }
 
-static inline
-void bytestream_2_register_callback(bytestream_2 stream, action_1 action)
+static inline void bytestream_2_register_callback(bytestream_2 stream,
+                                                  action_1 action)
 {
     stream.vt->register_callback(stream.obj, action);
 }
 
-static inline
-void bytestream_2_unregister_callback(bytestream_2 stream)
+static inline void bytestream_2_unregister_callback(bytestream_2 stream)
 {
     stream.vt->unregister_callback(stream.obj);
 }
 
-static inline
-ssize_t bytestream_2_remaining(bytestream_2 stream)
+static inline ssize_t bytestream_2_remaining(bytestream_2 stream)
 {
     return stream.vt->remaining(stream.obj);
 }
 
-static inline
-ssize_t bytestream_2_leftover_size(bytestream_2 stream)
+static inline ssize_t bytestream_2_leftover_size(bytestream_2 stream)
 {
     return stream.vt->leftover_size(stream.obj);
 }
 
-static inline
-void *bytestream_2_leftover_bytes(bytestream_2 stream)
+static inline void *bytestream_2_leftover_bytes(bytestream_2 stream)
 {
     return stream.vt->leftover_bytes(stream.obj);
 }
 
-static inline
-bytestream_1 bytestream_2_as_bytestream_1(bytestream_2 stream)
+static inline bytestream_1 bytestream_2_as_bytestream_1(bytestream_2 stream)
 {
     struct bytestream_1_vt *vt = (struct bytestream_1_vt *) stream.vt;
     return (bytestream_1) { stream.obj, vt };

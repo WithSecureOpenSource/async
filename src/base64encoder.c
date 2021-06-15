@@ -1,7 +1,10 @@
-#include <assert.h>
-#include <fstrace.h>
-#include <fsdyn/fsalloc.h>
 #include "base64encoder.h"
+
+#include <assert.h>
+
+#include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
 #include "async_version.h"
 
 enum {
@@ -23,11 +26,10 @@ struct base64encoder {
 static char BASE64MAP[62] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-FSTRACE_DECL(ASYNC_BASE64ENCODER_CREATE,
-             "UID=%64u PTR=%p ASYNC=%p STREAM=%p");
+FSTRACE_DECL(ASYNC_BASE64ENCODER_CREATE, "UID=%64u PTR=%p ASYNC=%p STREAM=%p");
 
-base64encoder_t *base64_encode(async_t *async, bytestream_1 stream,
-                               char pos62, char pos63, bool pad, char padchar)
+base64encoder_t *base64_encode(async_t *async, bytestream_1 stream, char pos62,
+                               char pos63, bool pad, char padchar)
 {
     base64encoder_t *encoder = fsalloc(sizeof(*encoder));
     encoder->async = async;
@@ -40,7 +42,7 @@ base64encoder_t *base64_encode(async_t *async, bytestream_1 stream,
     encoder->pad = pad;
     encoder->padchar = padchar == -1 ? '=' : padchar;
     encoder->bit_count = 0;
-    encoder->bits = 0;          /* don't-care */
+    encoder->bits = 0; /* don't-care */
     return encoder;
 }
 
@@ -117,8 +119,7 @@ static ssize_t do_read(base64encoder_t *encoder, void *buf, size_t count)
             return 1;
         case BASE64ENCODER_EOF:
             return 0;
-        default:
-            ;
+        default:;
     }
     size_t need = (count * 6 + 7 - encoder->bit_count) / 8;
     assert(need > 0);
@@ -202,7 +203,7 @@ static struct bytestream_1_vt base64stream_vt = {
     .read = _read,
     .close = _close,
     .register_callback = _register_callback,
-    .unregister_callback = _unregister_callback
+    .unregister_callback = _unregister_callback,
 };
 
 bytestream_1 base64encoder_as_bytestream_1(base64encoder_t *encoder)

@@ -1,9 +1,9 @@
 #include "asynctest-jsonthreader.h"
 
+#include <errno.h>
+
 #include <async/jsonthreader.h>
 #include <fsdyn/integer.h>
-
-#include <errno.h>
 
 typedef struct {
     tester_base_t base;
@@ -46,13 +46,9 @@ static VERDICT test(unsigned max_parallel)
     list_append(fds_to_keep, as_integer(0));
     list_append(fds_to_keep, as_integer(1));
     list_append(fds_to_keep, as_integer(2));
-    tester.threader = make_jsonthreader(async,
-                                        fds_to_keep,
-                                        post_fork_cb,
-                                        handle_request,
-                                        NULL,
-                                        8192,
-                                        max_parallel);
+    tester.threader =
+        make_jsonthreader(async, fds_to_keep, post_fork_cb, handle_request,
+                          NULL, 8192, max_parallel);
     action_1 probe_cb = { &tester, (act_1) probe_threader };
     jsonthreader_register_callback(tester.threader, probe_cb);
     async_execute(async, probe_cb);

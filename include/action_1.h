@@ -19,7 +19,7 @@ static inline void action_1_perf(action_1 action)
 
 static inline void __no_action(void *obj)
 {
-    (void)(obj);
+    (void) (obj);
 }
 
 #define NULL_ACTION_1 ((action_1) { NULL, __no_action })

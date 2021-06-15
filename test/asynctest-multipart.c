@@ -1,14 +1,14 @@
 #include "asynctest-multipart.h"
 
+#include <assert.h>
+#include <errno.h>
+#include <string.h>
+
 #include <async/multipartdeserializer.h>
 #include <async/queuestream.h>
 #include <async/tricklestream.h>
 #include <fsdyn/bytearray.h>
 #include <fsdyn/fsalloc.h>
-
-#include <assert.h>
-#include <errno.h>
-#include <string.h>
 
 typedef struct {
     tester_base_t base;
@@ -109,9 +109,7 @@ VERDICT test_multipart_single(test_data_t *test_data)
     queuestream_enqueue_bytes(qstr, test_data->input, strlen(test_data->input));
     queuestream_terminate(qstr);
     tricklestream_t *trickle =
-        open_tricklestream(async,
-                           queuestream_as_bytestream_1(qstr),
-                           0.01);
+        open_tricklestream(async, queuestream_as_bytestream_1(qstr), 0.01);
     multipartdeserializer_t *des =
         open_multipartdeserializer(async,
                                    tricklestream_as_bytestream_1(trickle),

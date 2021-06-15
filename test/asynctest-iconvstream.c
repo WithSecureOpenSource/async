@@ -1,11 +1,13 @@
+#include "asynctest-iconvstream.h"
+
+#include <assert.h>
 #include <errno.h>
 #include <stddef.h>
-#include <assert.h>
+
+#include <async/iconvstream.h>
+#include <async/pacerstream.h>
 #include <async/queuestream.h>
 #include <async/stringstream.h>
-#include <async/pacerstream.h>
-#include <async/iconvstream.h>
-#include "asynctest-iconvstream.h"
 
 typedef struct {
     tester_base_t base;
@@ -37,7 +39,8 @@ static void verify_read(tester_t *tester)
         if (tester->char_count != TOTAL_OUTPUT)
             tlog("Final char_count %u != %u (expected)",
                  (unsigned) tester->char_count, (unsigned) TOTAL_OUTPUT);
-        else tester->base.verdict = PASS;
+        else
+            tester->base.verdict = PASS;
         bytestream_1_close(tester->output);
         quit_test(&tester->base);
         return;
@@ -57,9 +60,8 @@ VERDICT test_iconvstream(void)
         queuestream_enqueue(qstr, stringstream_as_bytestream_1(sstr));
     }
     queuestream_terminate(qstr);
-    pacerstream_t *pstr = pace_stream(async,
-                                      queuestream_as_bytestream_1(qstr),
-                                      500000, 10, 200);
+    pacerstream_t *pstr =
+        pace_stream(async, queuestream_as_bytestream_1(qstr), 500000, 10, 200);
     iconvstream_t *icstr =
         open_iconvstream(async, pacerstream_as_bytestream_1(pstr),
                          "ISO-8859-15", "UTF-8");

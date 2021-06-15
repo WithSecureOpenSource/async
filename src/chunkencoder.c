@@ -1,10 +1,13 @@
-#include <string.h>
-#include <errno.h>
-#include <assert.h>
-#include <fstrace.h>
-#include <fsdyn/fsalloc.h>
-#include "async.h"
 #include "chunkencoder.h"
+
+#include <assert.h>
+#include <errno.h>
+#include <string.h>
+
+#include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
+#include "async.h"
 #include "async_version.h"
 
 struct chunkencoder {
@@ -18,9 +21,9 @@ struct chunkencoder {
 };
 
 enum {
-    MIN_CHUNK_SIZE = 2,         /* the terminating CRLF */
+    MIN_CHUNK_SIZE = 2, /* the terminating CRLF */
     MAX_CHUNK_SIZE = 16 * 1024 * 1024,
-    MAX_LENGTH_LENGTH = 2 + 7 + 2   /* CRLF plus 7 hex digits plus CRLF */
+    MAX_LENGTH_LENGTH = 2 + 7 + 2 /* CRLF plus 7 hex digits plus CRLF */
 };
 
 static const uint8_t hexdigit[] = "0123456789abcdef";
@@ -53,7 +56,8 @@ static ssize_t do_read(chunkencoder_t *encoder, void *buf, size_t count)
                 default:
                     abort();
             }
-        } else encoder->eoc = encoder->chunkbuf + MAX_LENGTH_LENGTH + n;
+        } else
+            encoder->eoc = encoder->chunkbuf + MAX_LENGTH_LENGTH + n;
         encoder->next = encoder->chunkbuf + MAX_LENGTH_LENGTH - 2;
         do {
             *--encoder->next = hexdigit[n % 16];
@@ -167,14 +171,15 @@ chunkencoder_t *chunk_encode_2(async_t *async, bytestream_1 stream,
     chunkencoder_t *encoder = fsalloc(sizeof *encoder);
     encoder->async = async;
     encoder->uid = fstrace_get_unique_id();
-    FSTRACE(ASYNC_CHUNKENCODER_CREATE, encoder->uid, encoder, async,
-            stream.obj, max_chunk_size, trace_termination, &termination);
+    FSTRACE(ASYNC_CHUNKENCODER_CREATE, encoder->uid, encoder, async, stream.obj,
+            max_chunk_size, trace_termination, &termination);
     encoder->stream = stream;
     if (max_chunk_size > MAX_CHUNK_SIZE)
         encoder->max_chunk_size = MAX_CHUNK_SIZE;
     else if (max_chunk_size < MIN_CHUNK_SIZE)
         encoder->max_chunk_size = MIN_CHUNK_SIZE;
-    else encoder->max_chunk_size = max_chunk_size;
+    else
+        encoder->max_chunk_size = max_chunk_size;
     encoder->chunkbuf = fsalloc(encoder->max_chunk_size + MAX_LENGTH_LENGTH);
     encoder->chunkbuf[MAX_LENGTH_LENGTH - 2] = '\r';
     encoder->chunkbuf[MAX_LENGTH_LENGTH - 1] = '\n';

@@ -1,15 +1,15 @@
 #include "alock.h"
 
-#include "jsonthreader.h"
-
-#include <fsdyn/integer.h>
-#include <fstrace.h>
-
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/file.h>
+
+#include <fsdyn/integer.h>
+#include <fstrace.h>
+
+#include "jsonthreader.h"
 
 typedef struct {
     const char *path;
@@ -99,8 +99,8 @@ alock_t *make_alock(async_t *async, const char *path, action_1 post_fork_cb)
     list_append(keep_fds, as_integer(0));
     list_append(keep_fds, as_integer(1));
     list_append(keep_fds, as_integer(2));
-    jsonthreader_t *threader = make_jsonthreader(
-        async, keep_fds, post_fork_cb, handle_request, ctx, 8192, 1);
+    jsonthreader_t *threader = make_jsonthreader(async, keep_fds, post_fork_cb,
+                                                 handle_request, ctx, 8192, 1);
     fsfree(ctx);
     if (!threader) {
         FSTRACE(ASYNC_ALOCK_CREATE_JSONTHREADER_FAIL);
@@ -172,8 +172,7 @@ bool alock_unlock(alock_t *alock)
     return send_request(alock, "unlock");
 }
 
-static bool parse_response(json_thing_t *thing,
-                           unsigned long long *error,
+static bool parse_response(json_thing_t *thing, unsigned long long *error,
                            bool *locked)
 {
     const char *status;

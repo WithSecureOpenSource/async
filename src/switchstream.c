@@ -1,9 +1,12 @@
-#include <errno.h>
-#include <assert.h>
-#include <fstrace.h>
-#include <fsdyn/fsalloc.h>
-#include "async.h"
 #include "switchstream.h"
+
+#include <assert.h>
+#include <errno.h>
+
+#include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
+#include "async.h"
 #include "async_version.h"
 
 struct switchstream {

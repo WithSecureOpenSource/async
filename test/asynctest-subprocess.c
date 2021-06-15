@@ -1,13 +1,13 @@
 #include "asynctest-subprocess.h"
 
-#include <async/subprocess.h>
-#include <fsdyn/bytearray.h>
-#include <fsdyn/fsalloc.h>
-
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+
+#include <async/subprocess.h>
+#include <fsdyn/bytearray.h>
+#include <fsdyn/fsalloc.h>
 
 typedef struct {
     tester_base_t base;
@@ -26,10 +26,8 @@ static void verify_read(tester_t *tester)
 {
     if (!tester->base.async)
         return;
-    ssize_t count = byte_array_append_stream(tester->buffer,
-                                             read_data,
-                                             &tester->stdout,
-                                             1024);
+    ssize_t count = byte_array_append_stream(tester->buffer, read_data,
+                                             &tester->stdout, 1024);
     if (count < 0) {
         if (errno != EAGAIN) {
             tlog("Errno %d from bytestream_1_read", errno);

@@ -1,16 +1,18 @@
-#include <errno.h>
+#include "asynctest-queuestream.h"
+
 #include <assert.h>
+#include <errno.h>
 #include <string.h>
+
 #include <async/async.h>
 #include <async/queuestream.h>
 #include <async/stringstream.h>
-#include "asynctest-queuestream.h"
 
 enum {
     QSTR_ENQUEUE_INPUT,
     QSTR_READ_INPUT,
     QSTR_TERMINATED,
-    QSTR_DONE
+    QSTR_DONE,
 };
 
 typedef struct {
@@ -33,8 +35,7 @@ static void qstr_probe(tester_t *context);
 static void qstr_enqueue_input(tester_t *context, ssize_t count)
 {
     if (count >= 0 || errno != EAGAIN) {
-        tlog("Expected EAGAIN, got %d (errno = %d)",
-             (int) count, (int) errno);
+        tlog("Expected EAGAIN, got %d (errno = %d)", (int) count, (int) errno);
         quit_test(&context->base);
         return;
     }
@@ -53,8 +54,8 @@ static void qstr_enqueue_input(tester_t *context, ssize_t count)
 static void qstr_read_input(tester_t *context, ssize_t count)
 {
     if (count <= 0) {
-        tlog("Unexpected error %d (errno %d) from queuestream",
-             (int) count, (int) errno);
+        tlog("Unexpected error %d (errno %d) from queuestream", (int) count,
+             (int) errno);
         quit_test(&context->base);
         return;
     }
@@ -85,8 +86,8 @@ static void qstr_read_input(tester_t *context, ssize_t count)
 static void qstr_terminated(tester_t *context, ssize_t count)
 {
     if (count != 0) {
-        tlog("Unexpected error %d (errno %d) from queuestream",
-             (int) count, (int) errno);
+        tlog("Unexpected error %d (errno %d) from queuestream", (int) count,
+             (int) errno);
         quit_test(&context->base);
         return;
     }
@@ -99,9 +100,9 @@ static void qstr_probe(tester_t *context)
 {
     if (context->state == QSTR_DONE) /* spurious? */
         return;
-    ssize_t count = queuestream_read(context->qstr,
-                                     context->buffer + context->offset,
-                                     sizeof context->buffer - context->offset);
+    ssize_t count =
+        queuestream_read(context->qstr, context->buffer + context->offset,
+                         sizeof context->buffer - context->offset);
     switch (context->state) {
         case QSTR_ENQUEUE_INPUT:
             qstr_enqueue_input(context, count);

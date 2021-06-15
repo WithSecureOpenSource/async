@@ -1,17 +1,20 @@
-#include <errno.h>
-#include <unistd.h>
-#include <stdbool.h>
+#include "jsonyield.h"
+
 #include <assert.h>
-#include <fstrace.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <unistd.h>
+
 #include <fsdyn/bytearray.h>
 #include <fsdyn/fsalloc.h>
-#include "naiveframer.h"
-#include "jsonyield.h"
+#include <fstrace.h>
+
 #include "async_version.h"
+#include "naiveframer.h"
 
 enum {
     TERMINATOR = '\0',
-    ESCAPE = '\33'
+    ESCAPE = '\33',
 };
 
 typedef enum {
@@ -69,8 +72,8 @@ FSTRACE_DECL(ASYNC_JSONYIELD_SET_STATE, "UID=%64u OLD=%I NEW=%I");
 
 static void set_yield_state(jsonyield_t *yield, jsonyield_state_t state)
 {
-    FSTRACE(ASYNC_JSONYIELD_SET_STATE, yield->uid,
-            trace_state, &yield->state, trace_state, &state);
+    FSTRACE(ASYNC_JSONYIELD_SET_STATE, yield->uid, trace_state, &yield->state,
+            trace_state, &state);
     yield->state = state;
 }
 
@@ -95,11 +98,8 @@ static json_thing_t *do_receive(jsonyield_t *yield)
             return jsonyield_receive(yield);
         case JSONYIELD_READING: {
             size_t read_pos = byte_array_size(yield->buffer);
-            ssize_t count =
-                byte_array_append_stream(yield->buffer,
-                                         read_frame,
-                                         yield->frame,
-                                         1024);
+            ssize_t count = byte_array_append_stream(yield->buffer, read_frame,
+                                                     yield->frame, 1024);
             if (count < 0 && errno == ENOSPC) {
                 char c;
                 count = bytestream_1_read(*yield->frame, &c, 1);
@@ -122,8 +122,7 @@ static json_thing_t *do_receive(jsonyield_t *yield)
                 return thing;
             }
             FSTRACE(ASYNC_JSONYIELD_INPUT_DUMP, yield->uid,
-                    byte_array_data(yield->buffer) + read_pos,
-                    count);
+                    byte_array_data(yield->buffer) + read_pos, count);
             async_execute(yield->async, yield->callback);
             errno = EAGAIN;
             return NULL;
@@ -187,8 +186,7 @@ void jsonyield_register_callback(jsonyield_t *yield, action_1 action)
         case JSONYIELD_SKIPPING:
             bytestream_1_register_callback(*yield->frame, yield->callback);
             break;
-        default:
-            ;
+        default:;
     }
 }
 
@@ -211,7 +209,7 @@ static const struct yield_1_vt jsonyield_vt = {
     .receive = _receive,
     .close = _close,
     .register_callback = _register_callback,
-    .unregister_callback = _unregister_callback
+    .unregister_callback = _unregister_callback,
 };
 
 yield_1 jsonyield_as_yield_1(jsonyield_t *yield)

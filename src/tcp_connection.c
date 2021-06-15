@@ -1,28 +1,31 @@
+#include "tcp_connection.h"
+
+#include <assert.h>
 #include <errno.h>
-#include <unistd.h>
 #include <fcntl.h>
-#include <sys/un.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <assert.h>
 #include <string.h>
-#include <fsdyn/list.h>
+#include <sys/un.h>
+#include <unistd.h>
+
 #include <fsdyn/fsalloc.h>
 #include <fsdyn/integer.h>
+#include <fsdyn/list.h>
 #include <fstrace.h>
-#include "tcp_connection.h"
+
 #include "async.h"
-#include "drystream.h"
 #include "async_version.h"
+#include "drystream.h"
 
 enum {
-    OUTBUF_SIZE = 1024 * 10
+    OUTBUF_SIZE = 1024 * 10,
 };
 
 enum {
     /* This value is used to mark pseudo-ancillary data for
      * tcp_mark_ancillary_data(). */
-    CMSG_ASYNC_MAGIC_MARK = 0xFEFDFCFB
+    CMSG_ASYNC_MAGIC_MARK = 0xFEFDFCFB,
 };
 
 struct tcp_conn {
@@ -75,7 +78,7 @@ enum {
     CONNECTING,
     CONNECTED,
     ENDED,
-    SHUT_DOWN
+    SHUT_DOWN,
 };
 
 static bool inactive(tcp_conn_t *conn)
@@ -86,7 +89,7 @@ static bool inactive(tcp_conn_t *conn)
 static size_t ancillary_data_size(const struct cmsghdr *cp)
 {
     /* Linux doesn't provide an appropriate macro. */
-    return cp->cmsg_len - (size_t) (uintptr_t) CMSG_DATA((struct cmsghdr *) 0);
+    return cp->cmsg_len - (size_t)(uintptr_t) CMSG_DATA((struct cmsghdr *) 0);
 }
 
 static size_t ancillary_data_info(struct cmsghdr *cp, int *level, int *type)
@@ -109,7 +112,7 @@ static void receive_ancillary_data(tcp_conn_t *conn, struct cmsghdr *cp)
     int type;
     size_t size = ancillary_data_info(cp, &level, &type);
     if (level == SOL_SOCKET && type == SCM_RIGHTS) {
-        int *fds = (int *)CMSG_DATA(cp);
+        int *fds = (int *) CMSG_DATA(cp);
 
         int remaining_fds = size / sizeof(int);
         while (remaining_fds--) {
@@ -134,17 +137,17 @@ static void receive_ancillary_data(tcp_conn_t *conn, struct cmsghdr *cp)
 static ssize_t receive(tcp_conn_t *conn, void *buf, size_t size)
 {
     if (!size)
-        return 0;               /* recvmsg() doesn't do this */
+        return 0; /* recvmsg() doesn't do this */
     struct iovec iov = {
         .iov_base = buf,
-        .iov_len = size
+        .iov_len = size,
     };
-    uint8_t ancillary[1024];    /* enough? */
+    uint8_t ancillary[1024]; /* enough? */
     struct msghdr message = {
         .msg_iov = &iov,
         .msg_iovlen = 1,
         .msg_control = ancillary,
-        .msg_controllen = sizeof ancillary
+        .msg_controllen = sizeof ancillary,
     };
     ssize_t count = recvmsg(conn->fd, &message, 0);
     if (count < 0)
@@ -289,7 +292,8 @@ void tcp_shut_down(tcp_conn_t *conn, int how, int *perror)
             case ENDED:
                 if (conn->outcursor < conn->outcount)
                     *perror = EPIPE;
-                else *perror = conn->output.error;
+                else
+                    *perror = conn->output.error;
                 break;
             default:
                 abort();
@@ -299,8 +303,7 @@ void tcp_shut_down(tcp_conn_t *conn, int how, int *perror)
     }
 }
 
-static bool ancillary_data_info_describes_file_descriptor(int level,
-                                                          int type,
+static bool ancillary_data_info_describes_file_descriptor(int level, int type,
                                                           size_t size)
 {
     return level == SOL_SOCKET && type == SCM_RIGHTS && size == sizeof(int);
@@ -327,15 +330,15 @@ void tcp_close(tcp_conn_t *conn)
     assert(!conn->connection_closed);
     while (!list_empty(conn->input.ancillary_data)) {
         struct cmsghdr *cp =
-            (struct cmsghdr *)list_pop_first(conn->input.ancillary_data);
+            (struct cmsghdr *) list_pop_first(conn->input.ancillary_data);
         if (ancillary_data_is_file_descriptor(cp))
             close_fd(CMSG_DATA(cp));
         fsfree(cp);
     }
     destroy_list(conn->input.ancillary_data);
     while (!list_empty(conn->output.ancillary_data)) {
-        struct cmsghdr *cp = (struct cmsghdr *)
-            list_pop_first(conn->output.ancillary_data);
+        struct cmsghdr *cp =
+            (struct cmsghdr *) list_pop_first(conn->output.ancillary_data);
         if (cp->cmsg_level == CMSG_ASYNC_MAGIC_MARK &&
             cp->cmsg_type == CMSG_ASYNC_MAGIC_MARK) {
             action_1 action;
@@ -403,7 +406,7 @@ static const struct bytestream_1_vt tcp_vt = {
     .read = _read,
     .close = _close,
     .register_callback = _register_callback,
-    .unregister_callback = _unregister_callback
+    .unregister_callback = _unregister_callback,
 };
 
 bytestream_1 tcp_get_input_stream(tcp_conn_t *conn)
@@ -411,9 +414,7 @@ bytestream_1 tcp_get_input_stream(tcp_conn_t *conn)
     return (bytestream_1) { conn, &tcp_vt };
 }
 
-static void no_flush_socket(tcp_conn_t *conn)
-{
-}
+static void no_flush_socket(tcp_conn_t *conn) {}
 
 static int turn_on_sockopt(int fd, int level, int option)
 {
@@ -501,12 +502,11 @@ static ssize_t transmit(tcp_conn_t *conn, size_t remaining)
     }
     struct iovec iov = {
         .iov_base = point,
-        .iov_len = remaining
+        .iov_len = remaining,
     };
     size_t ancillary_size = 0;
     list_elem_t *ep;
-    for (ep = list_get_first(conn->output.ancillary_data);
-         ep;
+    for (ep = list_get_first(conn->output.ancillary_data); ep;
          ep = list_next(ep)) {
         struct cmsghdr *cp = (struct cmsghdr *) list_elem_get_value(ep);
         if (cp->cmsg_level != CMSG_ASYNC_MAGIC_MARK ||
@@ -515,8 +515,7 @@ static ssize_t transmit(tcp_conn_t *conn, size_t remaining)
     }
     uint8_t *ancillary = fsalloc(ancillary_size);
     uint8_t *ap = ancillary;
-    for (ep = list_get_first(conn->output.ancillary_data);
-         ep;
+    for (ep = list_get_first(conn->output.ancillary_data); ep;
          ep = list_next(ep)) {
         struct cmsghdr *cp = (struct cmsghdr *) list_elem_get_value(ep);
         if (cp->cmsg_level != CMSG_ASYNC_MAGIC_MARK ||
@@ -532,7 +531,7 @@ static ssize_t transmit(tcp_conn_t *conn, size_t remaining)
         .msg_iov = &iov,
         .msg_iovlen = 1,
         .msg_control = ancillary,
-        .msg_controllen = ancillary_size
+        .msg_controllen = ancillary_size,
     };
     ssize_t count = sendmsg(conn->fd, &message, MSG_NOSIGNAL);
     if (count < 0)
@@ -541,8 +540,8 @@ static ssize_t transmit(tcp_conn_t *conn, size_t remaining)
         FSTRACE(ASYNC_TCP_SENDMSG, conn->uid, remaining, count);
         FSTRACE(ASYNC_TCP_SENDMSG_DUMP, conn->uid, point, count);
         while (!list_empty(conn->output.ancillary_data)) {
-            struct cmsghdr *cp = (struct cmsghdr *)
-                list_pop_first(conn->output.ancillary_data);
+            struct cmsghdr *cp =
+                (struct cmsghdr *) list_pop_first(conn->output.ancillary_data);
             if (cp->cmsg_level == CMSG_ASYNC_MAGIC_MARK &&
                 cp->cmsg_type == CMSG_ASYNC_MAGIC_MARK) {
                 action_1 action;
@@ -614,7 +613,8 @@ static void push_output(tcp_conn_t *conn)
             conn->outcursor += count;
             if (conn->outcursor >= conn->outcount)
                 reset_output_stream(conn);
-            else schedule_user_probe(conn);
+            else
+                schedule_user_probe(conn);
             break;
         default:
             FSTRACE(ASYNC_TCP_NO_PUSH, conn->uid);
@@ -887,8 +887,8 @@ void tcp_unregister_server_callback(tcp_server_t *server)
 FSTRACE_DECL(ASYNC_TCP_ACCEPT_FAIL, "UID=%64u ERRNO=%e");
 FSTRACE_DECL(ASYNC_TCP_ACCEPT, "UID=%64u UID=%64u FROM=%a FD=%d");
 
-tcp_conn_t *tcp_accept(tcp_server_t *server,
-                       struct sockaddr *addr, socklen_t *addrlen)
+tcp_conn_t *tcp_accept(tcp_server_t *server, struct sockaddr *addr,
+                       socklen_t *addrlen)
 {
     assert(server->async != NULL);
     int connfd = accept(server->fd, addr, addrlen);
@@ -931,8 +931,8 @@ FSTRACE_DECL(ASYNC_TCP_RECV_ANCILLARY_DUMP, "UID=%64u DATA=%B");
 
 ssize_t tcp_recv_ancillary_data(tcp_conn_t *conn, void *buf, size_t size)
 {
-    struct cmsghdr *cp = (struct cmsghdr *)
-        list_pop_first(conn->input.ancillary_data);
+    struct cmsghdr *cp =
+        (struct cmsghdr *) list_pop_first(conn->input.ancillary_data);
     if (!cp) {
         errno = EAGAIN;
         FSTRACE(ASYNC_TCP_RECV_ANCILLARY_FAIL, conn->uid);
@@ -981,10 +981,9 @@ list_t *tcp_peek_received_fds(tcp_conn_t *conn)
     list_t *fds = make_list();
 
     for (list_elem_t *ep = list_get_first(conn->input.ancillary_data);
-         ep != NULL;
-         ep = list_next(ep)) {
+         ep != NULL; ep = list_next(ep)) {
 
-        struct cmsghdr *cp = (struct cmsghdr *)list_elem_get_value(ep);
+        struct cmsghdr *cp = (struct cmsghdr *) list_elem_get_value(ep);
         int level, type;
         size_t size = ancillary_data_info(cp, &level, &type);
 
@@ -1025,8 +1024,8 @@ FSTRACE_DECL(ASYNC_TCP_SEND_FD, "UID=%64u FD=%d");
 
 int tcp_send_fd(tcp_conn_t *conn, int fd, bool close_after_sending)
 {
-    if (tcp_send_ancillary_data(conn, SOL_SOCKET, SCM_RIGHTS,
-                                &fd, sizeof fd) < 0) {
+    if (tcp_send_ancillary_data(conn, SOL_SOCKET, SCM_RIGHTS, &fd, sizeof fd) <
+        0) {
         FSTRACE(ASYNC_TCP_SEND_FD_FAIL, conn->uid, fd);
         return -1;
     }
@@ -1043,9 +1042,9 @@ FSTRACE_DECL(ASYNC_TCP_MARK_ANCILLARY, "UID=%64u OBJ=%p ACT=%p");
 void tcp_mark_ancillary_data(tcp_conn_t *conn, action_1 action)
 {
     FSTRACE(ASYNC_TCP_MARK_ANCILLARY, conn->uid, action.obj, action.act);
-    (void) tcp_send_ancillary_data(conn,
-                                   CMSG_ASYNC_MAGIC_MARK, CMSG_ASYNC_MAGIC_MARK,
-                                   &action, sizeof action);
+    (void) tcp_send_ancillary_data(conn, CMSG_ASYNC_MAGIC_MARK,
+                                   CMSG_ASYNC_MAGIC_MARK, &action,
+                                   sizeof action);
 }
 
 FSTRACE_DECL(ASYNC_TCP_ADOPT_CREATE, "UID=%64u PTR=%p");
@@ -1070,13 +1069,14 @@ static tcp_conn_t *adopt_connection(async_t *async, uint64_t uid, int connfd)
     if (turn_on_sockopt(conn->fd, SOL_SOCKET, SO_NOSIGPIPE) < 0)
         goto fail;
 #endif
-    /* address the ack delay problem by corking where available */
+        /* address the ack delay problem by corking where available */
 #ifdef TCP_CORK
     if (turn_on_sockopt(conn->fd, IPPROTO_TCP, TCP_CORK) >= 0)
         conn->flush_socket = tcp_flush_socket;
     else if (errno == EOPNOTSUPP)
         conn->flush_socket = no_flush_socket;
-    else goto fail;
+    else
+        goto fail;
 #else
     conn->flush_socket = no_flush_socket;
 #endif
@@ -1086,7 +1086,7 @@ static tcp_conn_t *adopt_connection(async_t *async, uint64_t uid, int connfd)
     conn->flags = TCP_FLAG_EPOLL_SEND | TCP_FLAG_INGRESS_PENDING;
     return conn;
 
- fail:
+fail:
     FSTRACE(ASYNC_TCP_ADOPT_FAIL, uid, connfd);
     close(conn->fd);
     fsfree(conn);

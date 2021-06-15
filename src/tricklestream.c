@@ -1,9 +1,12 @@
-#include <errno.h>
-#include <assert.h>
-#include <fstrace.h>
-#include <fsdyn/fsalloc.h>
-#include "async.h"
 #include "tricklestream.h"
+
+#include <assert.h>
+#include <errno.h>
+
+#include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
+#include "async.h"
 #include "async_version.h"
 
 struct tricklestream {
@@ -135,7 +138,7 @@ tricklestream_t *open_tricklestream(async_t *async, bytestream_1 stream,
     FSTRACE(ASYNC_TRICKLESTREAM_CREATE, trickle->uid, trickle, async,
             stream.obj, interval);
     trickle->stream = stream;
-    trickle->interval = (uint64_t) (ASYNC_S * interval);
+    trickle->interval = (uint64_t)(ASYNC_S * interval);
     trickle->due = async_now(async) + trickle->interval;
     trickle->callback = NULL_ACTION_1;
     trickle->retry_timer = NULL;

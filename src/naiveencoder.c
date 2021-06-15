@@ -1,16 +1,19 @@
-#include <string.h>
-#include <errno.h>
-#include <fsdyn/fsalloc.h>
-#include <assert.h>
-#include "async.h"
 #include "naiveencoder.h"
+
+#include <assert.h>
+#include <errno.h>
+#include <string.h>
+
+#include <fsdyn/fsalloc.h>
+
+#include "async.h"
 #include "async_version.h"
 
 enum {
     NAIVEENCODER_READING,
-    NAIVEENCODER_ESCAPED,     /* escape byte delivered */
-    NAIVEENCODER_EXHAUSTED,   /* source exhausted; terminator pending */
-    NAIVEENCODER_TERMINATED,  /* terminator delivered */
+    NAIVEENCODER_ESCAPED,    /* escape byte delivered */
+    NAIVEENCODER_EXHAUSTED,  /* source exhausted; terminator pending */
+    NAIVEENCODER_TERMINATED, /* terminator delivered */
     NAIVEENCODER_ERROR,
     NAIVEENCODER_CLOSED
 };
@@ -31,8 +34,8 @@ ssize_t naiveencoder_read(naiveencoder_t *encoder, void *buf, size_t count)
         case NAIVEENCODER_ESCAPED: {
             if (encoder->low >= encoder->high) {
                 ssize_t more =
-                    bytestream_1_read(encoder->source,
-                                      encoder->buffer, sizeof encoder->buffer);
+                    bytestream_1_read(encoder->source, encoder->buffer,
+                                      sizeof encoder->buffer);
                 if (more < 0)
                     return -1;
                 if (!more) {

@@ -1,11 +1,11 @@
 #ifndef __MULTIPARTDECODER__
 #define __MULTIPARTDECODER__
 
+#include <stdbool.h>
+
 #include "async.h"
 #include "bytestream_1.h"
 #include "bytestream_2.h"
-
-#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,14 +16,11 @@ typedef struct multipartdecoder multipartdecoder_t;
 /*
  * Decode one part of the given RFC 2046 multipart body stream.
  */
-multipartdecoder_t *multipart_decode(async_t *async,
-                                     bytestream_1 source,
-                                     const char *boundary,
-                                     bool first_part);
+multipartdecoder_t *multipart_decode(async_t *async, bytestream_1 source,
+                                     const char *boundary, bool first_part);
 
 bytestream_2 multipartdecoder_as_bytestream_2(multipartdecoder_t *decoder);
-ssize_t multipartdecoder_read(multipartdecoder_t *decoder,
-                              void *buf,
+ssize_t multipartdecoder_read(multipartdecoder_t *decoder, void *buf,
                               size_t count);
 
 void multipartdecoder_close(multipartdecoder_t *decoder);

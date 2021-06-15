@@ -1,9 +1,12 @@
-#include <stdbool.h>
-#include <errno.h>
-#include <assert.h>
-#include <fstrace.h>
-#include <fsdyn/fsalloc.h>
 #include "farewellstream.h"
+
+#include <assert.h>
+#include <errno.h>
+#include <stdbool.h>
+
+#include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
 #include "async_version.h"
 
 struct farewellstream {
@@ -42,7 +45,8 @@ void farewellstream_close(farewellstream_t *fwstr)
     fwstr->async = NULL;
     if (fwstr->sync)
         action_1_perf(fwstr->farewell_action);
-    else async_execute(async, fwstr->farewell_action);
+    else
+        async_execute(async, fwstr->farewell_action);
 }
 
 static void _close(void *obj)
@@ -99,8 +103,8 @@ static farewellstream_t *make_farewellstream(async_t *async,
     farewellstream_t *fwstr = fsalloc(sizeof *fwstr);
     fwstr->async = async;
     fwstr->uid = fstrace_get_unique_id();
-    FSTRACE(ASYNC_FAREWELLSTREAM_CREATE, fwstr->uid, fwstr, async,
-            stream.obj, farewell_action.obj, farewell_action.act,
+    FSTRACE(ASYNC_FAREWELLSTREAM_CREATE, fwstr->uid, fwstr, async, stream.obj,
+            farewell_action.obj, farewell_action.act,
             sync ? "SYNC" : "RELAXED");
     fwstr->stream = stream;
     fwstr->farewell_action = farewell_action;
@@ -108,8 +112,7 @@ static farewellstream_t *make_farewellstream(async_t *async,
     return fwstr;
 }
 
-farewellstream_t *open_farewellstream(async_t *async,
-                                      bytestream_1 stream,
+farewellstream_t *open_farewellstream(async_t *async, bytestream_1 stream,
                                       action_1 farewell_action)
 {
     return make_farewellstream(async, stream, farewell_action, true);

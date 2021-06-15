@@ -1,8 +1,11 @@
-#include <unistd.h>
-#include <errno.h>
-#include <fstrace.h>
-#include <fsdyn/fsalloc.h>
 #include "errorstream.h"
+
+#include <errno.h>
+#include <unistd.h>
+
+#include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
 #include "async_version.h"
 
 struct errorstream {
@@ -12,8 +15,7 @@ struct errorstream {
     action_1 callback;
 };
 
-FSTRACE_DECL(ASYNC_ERRORSTREAM_CREATE,
-             "UID=%64u PTR=%p ASYNC=%p ERRNO=%E");
+FSTRACE_DECL(ASYNC_ERRORSTREAM_CREATE, "UID=%64u PTR=%p ASYNC=%p ERRNO=%E");
 
 errorstream_t *make_errorstream(async_t *async, int err)
 {

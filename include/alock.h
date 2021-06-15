@@ -1,8 +1,8 @@
 #pragma once
 
-#include "async.h"
-
 #include <stdbool.h>
+
+#include "async.h"
 
 typedef struct alock alock_t;
 
@@ -10,9 +10,7 @@ typedef struct alock alock_t;
  * file using flock(2) in a subprocess. The file to lock is opened
  * exclusively in the subprocess on the first lock or unlock
  * operation. */
-alock_t *make_alock(async_t *async,
-                    const char *path,
-                    action_1 post_fork_cb);
+alock_t *make_alock(async_t *async, const char *path, action_1 post_fork_cb);
 void destroy_alock(alock_t *alock);
 /*
  * Lock or unlock the underlying file. On failure, false is returned

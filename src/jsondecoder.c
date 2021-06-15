@@ -1,9 +1,12 @@
-#include <errno.h>
+#include "jsondecoder.h"
+
 #include <assert.h>
-#include <fstrace.h>
+#include <errno.h>
+
 #include <fsdyn/bytearray.h>
 #include <fsdyn/fsalloc.h>
-#include "jsondecoder.h"
+#include <fstrace.h>
+
 #include "async_version.h"
 
 struct jsondecoder {
@@ -23,8 +26,8 @@ jsondecoder_t *open_jsondecoder(async_t *async, bytestream_1 source,
     jsondecoder_t *decoder = fsalloc(sizeof *decoder);
     decoder->async = async;
     decoder->uid = fstrace_get_unique_id();
-    FSTRACE(ASYNC_JSONDECODER_CREATE,
-            decoder->uid, decoder, async, source.obj, max_encoding_size);
+    FSTRACE(ASYNC_JSONDECODER_CREATE, decoder->uid, decoder, async, source.obj,
+            max_encoding_size);
     decoder->source = source;
     decoder->buffer = make_byte_array(max_encoding_size);
     decoder->eof = false;
@@ -43,15 +46,12 @@ FSTRACE_DECL(ASYNC_JSONDECODER_RECEIVE_INPUT_DUMP, "UID=%64u TEXT=%A");
 static json_thing_t *do_receive(jsondecoder_t *decoder)
 {
     if (decoder->eof) {
-        errno = 0;              /* EOF */
+        errno = 0; /* EOF */
         return NULL;
     }
     for (;;) {
-        ssize_t count =
-            byte_array_append_stream(decoder->buffer,
-                                     read_frame,
-                                     &decoder->source,
-                                     1024);
+        ssize_t count = byte_array_append_stream(decoder->buffer, read_frame,
+                                                 &decoder->source, 1024);
         if (count < 0 && errno == ENOSPC) {
             char c;
             count = bytestream_1_read(decoder->source, &c, 1);
@@ -104,8 +104,8 @@ FSTRACE_DECL(ASYNC_JSONDECODER_REGISTER_FRAME, "UID=%64u OBJ=%p ACT=%p");
 
 void jsondecoder_register_callback(jsondecoder_t *decoder, action_1 action)
 {
-    FSTRACE(ASYNC_JSONDECODER_REGISTER_FRAME,
-            decoder->uid, action.obj, action.act);
+    FSTRACE(ASYNC_JSONDECODER_REGISTER_FRAME, decoder->uid, action.obj,
+            action.act);
     bytestream_1_register_callback(decoder->source, action);
 }
 

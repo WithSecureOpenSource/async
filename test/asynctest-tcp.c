@@ -1,15 +1,17 @@
-#include <unistd.h>
+#include "asynctest-tcp.h"
+
+#include <assert.h>
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 #include <sys/un.h>
-#include <assert.h>
+#include <unistd.h>
+
 #include <async/async.h>
-#include <async/tcp_connection.h>
+#include <async/farewellstream.h>
 #include <async/queuestream.h>
 #include <async/stringstream.h>
-#include <async/farewellstream.h>
-#include "asynctest-tcp.h"
+#include <async/tcp_connection.h>
 
 typedef struct {
     async_t *async;
@@ -24,7 +26,7 @@ enum {
     TCP_HELLO,
     TCP_WORLD,
     TCP_CLOSING,
-    TCP_CLOSED
+    TCP_CLOSED,
 };
 
 static void tcp_close_up(TCP_CONTEXT *context)
@@ -61,8 +63,7 @@ static void tcp_probe_up_hello(TCP_CONTEXT *context)
     if (count < 0 && errno == EAGAIN)
         return;
     if (count != 5) {
-        tlog("Unexpected error %d (errno %d)",
-             (int) count, (int) errno);
+        tlog("Unexpected error %d (errno %d)", (int) count, (int) errno);
         async_quit_loop(context->async);
         return;
     }
@@ -77,19 +78,17 @@ static void tcp_probe_up_hello(TCP_CONTEXT *context)
         return;
     }
     int fd = 0;
-    count = tcp_send_ancillary_data(context->sconn, SOL_SOCKET, SCM_RIGHTS,
-                                    &fd, sizeof fd);
+    count = tcp_send_ancillary_data(context->sconn, SOL_SOCKET, SCM_RIGHTS, &fd,
+                                    sizeof fd);
     if (count != sizeof fd) {
         tlog("Failed to send credentials in ancillary data");
         async_quit_loop(context->async);
         return;
     }
     stringstream_t *msg = open_stringstream(context->async, "world");
-    queuestream_enqueue(context->upstream,
-                        stringstream_as_bytestream_1(msg));
+    queuestream_enqueue(context->upstream, stringstream_as_bytestream_1(msg));
     context->state = TCP_WORLD;
-    async_execute(context->async,
-                  (action_1) { context, (act_1) tcp_probe_up });
+    async_execute(context->async, (action_1) { context, (act_1) tcp_probe_up });
 }
 
 static void tcp_probe_up_world(TCP_CONTEXT *context)
@@ -112,8 +111,7 @@ static void tcp_probe_up_closing(TCP_CONTEXT *context)
     if (count < 0 && errno == EAGAIN)
         return;
     if (count != 0) {
-        tlog("Unexpected error %d (errno %d)",
-             (int) count, (int) errno);
+        tlog("Unexpected error %d (errno %d)", (int) count, (int) errno);
         async_quit_loop(context->async);
         return;
     }
@@ -142,7 +140,7 @@ static void tcp_probe_up(TCP_CONTEXT *context)
         case TCP_CLOSING:
             tcp_probe_up_closing(context);
             break;
-        case TCP_CLOSED:        /* spurious */
+        case TCP_CLOSED: /* spurious */
             break;
         default:
             assert(0);
@@ -193,8 +191,7 @@ static void tcp_probe_down_init(TCP_CONTEXT *context)
         return;
     }
     stringstream_t *msg = open_stringstream(context->async, "Hello");
-    queuestream_enqueue(context->downstream,
-                        stringstream_as_bytestream_1(msg));
+    queuestream_enqueue(context->downstream, stringstream_as_bytestream_1(msg));
     context->state = TCP_HELLO;
 }
 
@@ -218,8 +215,7 @@ static void tcp_probe_down_world(TCP_CONTEXT *context)
     if (count < 0 && errno == EAGAIN)
         return;
     if (count != 5) {
-        tlog("Unexpected error %d (errno %d)",
-             (int) count, (int) errno);
+        tlog("Unexpected error %d (errno %d)", (int) count, (int) errno);
         async_quit_loop(context->async);
         return;
     }
@@ -288,8 +284,7 @@ static void tcp_probe_down_closed(TCP_CONTEXT *context)
     if (count < 0 && errno == EAGAIN)
         return;
     if (count != 0) {
-        tlog("Unexpected error %d (errno %d)",
-             (int) count, (int) errno);
+        tlog("Unexpected error %d (errno %d)", (int) count, (int) errno);
         async_quit_loop(context->async);
         return;
     }
@@ -326,7 +321,7 @@ VERDICT test_tcp_connection(void)
 {
     TCP_CONTEXT context = {
         .state = TCP_INIT,
-        .verdict = FAIL
+        .verdict = FAIL,
     };
     async_t *async = context.async = make_async();
     const char *sockpath = "/tmp/asynctest.sock";

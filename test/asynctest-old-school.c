@@ -1,12 +1,13 @@
-#include <unistd.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include "asynctest-old-school.h"
+
 #include <assert.h>
 #include <errno.h>
-#include <sys/un.h>
+#include <fcntl.h>
 #include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+
 #include <async/async.h>
-#include "asynctest-old-school.h"
 
 static int nonblock(int fd)
 {
@@ -20,8 +21,12 @@ typedef struct {
     tester_base_t base;
     int sd[2];
     enum {
-        DONT_READ_YET, NOT_YET_EITHER, READING, SLEEPING,
-        DONT_DRAIN_YET, DRAINED
+        DONT_READ_YET,
+        NOT_YET_EITHER,
+        READING,
+        SLEEPING,
+        DONT_DRAIN_YET,
+        DRAINED
     } state;
 } tester_t;
 
@@ -55,7 +60,6 @@ static void modify_it(tester_t *context)
                       async_now(context->base.async) + ASYNC_S,
                       (action_1) { context, (act_1) drain_it });
 }
-
 
 static void probe_it(tester_t *context)
 {

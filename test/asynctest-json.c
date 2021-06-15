@@ -1,13 +1,15 @@
+#include <assert.h>
 #include <errno.h>
 #include <string.h>
-#include <assert.h>
-#include <async/jsonyield.h>
+
 #include <async/jsondecoder.h>
 #include <async/jsonencoder.h>
-#include <async/queuestream.h>
-#include <async/pacerstream.h>
+#include <async/jsonyield.h>
 #include <async/naiveencoder.h>
+#include <async/pacerstream.h>
+#include <async/queuestream.h>
 #include <async/tricklestream.h>
+
 #include "asynctest.h"
 
 typedef struct {
@@ -63,7 +65,8 @@ static void verify_receive(tester_t *tester)
                 tlog("Final pdu_count %u != %u (expected)",
                      (unsigned) tester->pdu_count,
                      (unsigned) tester->expected_pdu_count);
-            else tester->base.verdict = PASS;
+            else
+                tester->base.verdict = PASS;
             if (tester->decoder)
                 jsondecoder_close(tester->decoder);
             else
@@ -106,8 +109,7 @@ VERDICT test_json(void (*init_test_input)(tester_t *, json_thing_t *, action_1))
     return posttest_check(tester.base.verdict);
 }
 
-static void init_jsonyield(tester_t *tester,
-                           json_thing_t *data,
+static void init_jsonyield(tester_t *tester, json_thing_t *data,
                            action_1 action)
 {
     async_t *async = tester->base.async;
@@ -118,16 +120,13 @@ static void init_jsonyield(tester_t *tester,
             jsonencoder_as_bytestream_1(json_encode(async, data));
         naiveencoder_t *naive_encoder =
             naive_encode(async, payload, '\0', '\33');
-        queuestream_enqueue(qstr,
-                            naiveencoder_as_bytestream_1(naive_encoder));
+        queuestream_enqueue(qstr, naiveencoder_as_bytestream_1(naive_encoder));
     }
     queuestream_terminate(qstr);
-    pacerstream_t *pstr = pace_stream(async,
-                                      queuestream_as_bytestream_1(qstr),
-                                      5000, 10, 200);
-    jsonyield_t *yield = open_jsonyield(async,
-                                        pacerstream_as_bytestream_1(pstr),
-                                        300);
+    pacerstream_t *pstr =
+        pace_stream(async, queuestream_as_bytestream_1(qstr), 5000, 10, 200);
+    jsonyield_t *yield =
+        open_jsonyield(async, pacerstream_as_bytestream_1(pstr), 300);
     jsonyield_register_callback(yield, action);
     tester->yield = jsonyield_as_yield_1(yield);
     tester->expected_pdu_count = 200;
@@ -138,8 +137,7 @@ VERDICT test_jsonyield(void)
     return test_json(init_jsonyield);
 }
 
-static void init_jsondecoder(tester_t *tester,
-                             json_thing_t *data,
+static void init_jsondecoder(tester_t *tester, json_thing_t *data,
                              action_1 action)
 {
     async_t *async = tester->base.async;

@@ -13,7 +13,7 @@ typedef struct naivedecoder naivedecoder_t;
 
 enum {
     NAIVEDECODER_DETACH,
-    NAIVEDECODER_ADOPT_INPUT
+    NAIVEDECODER_ADOPT_INPUT,
 };
 
 /*
@@ -29,8 +29,8 @@ enum {
  * stream ends when the naive stream does. (Otherwise, an EPROTO is
  * generated instead of an EOF.
  */
-naivedecoder_t *naive_decode(async_t *async, bytestream_1 source,
-                             int mode, uint8_t terminator, uint8_t escape);
+naivedecoder_t *naive_decode(async_t *async, bytestream_1 source, int mode,
+                             uint8_t terminator, uint8_t escape);
 
 bytestream_1 naivedecoder_as_bytestream_1(naivedecoder_t *decoder);
 bytestream_2 naivedecoder_as_bytestream_2(naivedecoder_t *decoder);

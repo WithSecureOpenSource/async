@@ -1,12 +1,15 @@
+#include "chunkframer.h"
+
+#include <assert.h>
 #include <errno.h>
 #include <unistd.h>
-#include <assert.h>
-#include <fstrace.h>
+
 #include <fsdyn/fsalloc.h>
-#include "chunkdecoder.h"
-#include "chunkframer.h"
-#include "deserializer.h"
+#include <fstrace.h>
+
 #include "async_version.h"
+#include "chunkdecoder.h"
+#include "deserializer.h"
 
 struct chunkframer {
     async_t *async;
@@ -93,7 +96,7 @@ static const struct yield_1_vt chunkframer_vt = {
     .receive = _receive,
     .close = _close,
     .register_callback = _register_callback,
-    .unregister_callback = _unregister_callback
+    .unregister_callback = _unregister_callback,
 };
 
 yield_1 chunkframer_as_yield_1(chunkframer_t *framer)

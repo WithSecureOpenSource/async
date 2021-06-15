@@ -2,6 +2,7 @@
 #define __RESERVOIR__
 
 #include <stdbool.h>
+
 #include "async.h"
 #include "bytestream_1.h"
 

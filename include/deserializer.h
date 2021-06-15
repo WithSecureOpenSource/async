@@ -15,10 +15,8 @@ typedef struct deserializer deserializer_t;
 typedef bytestream_2 (*decoder_factory_t)(void *factory_obj,
                                           bytestream_1 source);
 
-deserializer_t *open_deserializer(async_t *async,
-                                  bytestream_1 source,
-                                  decoder_factory_t factory,
-                                  void *factory_obj);
+deserializer_t *open_deserializer(async_t *async, bytestream_1 source,
+                                  decoder_factory_t factory, void *factory_obj);
 
 yield_1 deserializer_as_yield_1(deserializer_t *deserializer);
 

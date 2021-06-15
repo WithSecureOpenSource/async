@@ -1,10 +1,13 @@
-#include <errno.h>
-#include <assert.h>
-#include <fstrace.h>
-#include <fsdyn/fsalloc.h>
 #include "probestream.h"
-#include "bytestream_1.h"
+
+#include <assert.h>
+#include <errno.h>
+
+#include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
 #include "async_version.h"
+#include "bytestream_1.h"
 
 struct probestream {
     async_t *async;
@@ -101,8 +104,8 @@ probestream_t *open_probestream(async_t *async, void *obj, bytestream_1 source,
     probestream_t *probestr = fsalloc(sizeof *probestr);
     probestr->async = async;
     probestr->uid = fstrace_get_unique_id();
-    FSTRACE(ASYNC_PROBESTREAM_CREATE, probestr->uid, probestr, async,
-            obj, source.obj, close_cb, read_cb);
+    FSTRACE(ASYNC_PROBESTREAM_CREATE, probestr->uid, probestr, async, obj,
+            source.obj, close_cb, read_cb);
     probestr->source = source;
     probestr->obj = obj;
     probestr->close_action = close_cb;

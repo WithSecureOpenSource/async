@@ -5,10 +5,12 @@
  * The "tcp_" prefix is a historical relic.
  */
 
-#include <fsdyn/list.h>
 #include <stdbool.h>
-#include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+
+#include <fsdyn/list.h>
+
 #include "async.h"
 #include "bytestream_1.h"
 
@@ -20,12 +22,12 @@ typedef struct tcp_conn tcp_conn_t;
 typedef struct tcp_server tcp_server_t;
 
 enum {
-    TCP_FLAG_INGRESS_LIVE      = 0x01,
-    TCP_FLAG_EGRESS_LIVE       = 0x02,
-    TCP_FLAG_EPOLL_RECV        = 0x04, /* recv returned EAGAIN */
-    TCP_FLAG_EPOLL_SEND        = 0x08, /* send returned EAGAIN */
-    TCP_FLAG_INGRESS_PENDING   = 0x10, /* waiting for tcp_read to be called */
-    TCP_FLAG_EGRESS_PENDING    = 0x20, /* wtng for notific'n from outstrm */
+    TCP_FLAG_INGRESS_LIVE = 0x01,
+    TCP_FLAG_EGRESS_LIVE = 0x02,
+    TCP_FLAG_EPOLL_RECV = 0x04,      /* recv returned EAGAIN */
+    TCP_FLAG_EPOLL_SEND = 0x08,      /* send returned EAGAIN */
+    TCP_FLAG_INGRESS_PENDING = 0x10, /* waiting for tcp_read to be called */
+    TCP_FLAG_EGRESS_PENDING = 0x20,  /* wtng for notific'n from outstrm */
 };
 
 typedef struct {
@@ -197,8 +199,8 @@ tcp_server_t *tcp_listen(async_t *async, const struct sockaddr *address,
 void tcp_close_server(tcp_server_t *server);
 void tcp_register_server_callback(tcp_server_t *server, action_1 action);
 void tcp_unregister_server_callback(tcp_server_t *server);
-tcp_conn_t *tcp_accept(tcp_server_t *server,
-                       struct sockaddr *addr, socklen_t *addrlen);
+tcp_conn_t *tcp_accept(tcp_server_t *server, struct sockaddr *addr,
+                       socklen_t *addrlen);
 int tcp_get_server_fd(tcp_server_t *server);
 tcp_server_t *tcp_adopt_server(async_t *async, int serverfd);
 

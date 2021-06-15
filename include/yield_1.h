@@ -1,8 +1,8 @@
 #ifndef __ASYNC_YIELD__
 #define __ASYNC_YIELD__
 
-#include "async.h"
 #include "action_1.h"
+#include "async.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,7 +12,7 @@ extern "C" {
  * driven by I/O events. */
 
 typedef struct {
-    void *obj;             /* The implementation of the yield object. */
+    void *obj; /* The implementation of the yield object. */
     const struct yield_1_vt *vt;
 } yield_1;
 
@@ -37,28 +37,24 @@ struct yield_1_vt {
     void (*unregister_callback)(void *obj);
 };
 
-static inline
-void *yield_1_receive(yield_1 yield)
+static inline void *yield_1_receive(yield_1 yield)
 {
     return yield.vt->receive(yield.obj);
 }
 
-static inline
-void yield_1_close(yield_1 yield)
+static inline void yield_1_close(yield_1 yield)
 {
     yield.vt->close(yield.obj);
 }
 
 void yield_1_close_relaxed(async_t *async, yield_1 yield);
 
-static inline
-void yield_1_register_callback(yield_1 yield, action_1 action)
+static inline void yield_1_register_callback(yield_1 yield, action_1 action)
 {
     yield.vt->register_callback(yield.obj, action);
 }
 
-static inline
-void yield_1_unregister_callback(yield_1 yield)
+static inline void yield_1_unregister_callback(yield_1 yield)
 {
     yield.vt->unregister_callback(yield.obj);
 }

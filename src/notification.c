@@ -1,11 +1,14 @@
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <assert.h>
-#include <fstrace.h>
-#include <fsdyn/fsalloc.h>
-#include <unixkit/unixkit.h>
 #include "notification.h"
+
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+#include <unixkit/unixkit.h>
+
 #include "async_version.h"
 
 struct notification {
@@ -54,8 +57,8 @@ notification_t *make_notification(async_t *async, action_1 action)
     notification_t *notification = fsalloc(sizeof *notification);
     notification->async = async;
     notification->uid = fstrace_get_unique_id();
-    FSTRACE(ASYNC_NOTIFICATION_CREATE, notification->uid, notification,
-            async, action.obj, action.act);
+    FSTRACE(ASYNC_NOTIFICATION_CREATE, notification->uid, notification, async,
+            action.obj, action.act);
     notification->action = action;
     notification->readfd = fd[0];
     notification->writefd = fd[1];
@@ -85,4 +88,3 @@ void issue_notification(notification_t *notification)
     if (write(notification->writefd, notification, 1) < 0)
         assert(errno == EAGAIN);
 }
-

@@ -1,10 +1,13 @@
+#include "iconvstream.h"
+
+#include <assert.h>
+#include <errno.h>
 #include <iconv.h>
 #include <string.h>
-#include <errno.h>
-#include <assert.h>
-#include <fstrace.h>
+
 #include <fsdyn/fsalloc.h>
-#include "iconvstream.h"
+#include <fstrace.h>
+
 #include "async_version.h"
 
 typedef enum {
@@ -37,8 +40,8 @@ iconvstream_t *open_iconvstream(async_t *async, bytestream_1 source,
     iconvstream_t *stream = fsalloc(sizeof(*stream));
     stream->async = async;
     stream->uid = fstrace_get_unique_id();
-    FSTRACE(ASYNC_ICONVSTREAM_CREATE, stream->uid, stream, async,
-            source.obj, tocode, fromcode);
+    FSTRACE(ASYNC_ICONVSTREAM_CREATE, stream->uid, stream, async, source.obj,
+            tocode, fromcode);
     stream->source = source;
     stream->iconv = iconv;
     stream->state = ICONVSTREAM_OPEN;
@@ -67,8 +70,8 @@ FSTRACE_DECL(ASYNC_ICONVSTREAMNAIVEFRAMER_SET_STATE, "UID=%64u OLD=%I NEW=%I");
 
 static void set_state(iconvstream_t *stream, iconvstream_state_t state)
 {
-    FSTRACE(ASYNC_ICONVSTREAMNAIVEFRAMER_SET_STATE, stream->uid,
-            trace_state, &stream->state, trace_state, &state);
+    FSTRACE(ASYNC_ICONVSTREAMNAIVEFRAMER_SET_STATE, stream->uid, trace_state,
+            &stream->state, trace_state, &state);
     stream->state = state;
 }
 
@@ -146,8 +149,8 @@ static ssize_t stream_read(iconvstream_t *stream, void *buf, size_t count)
             set_state(stream, ICONVSTREAM_EXHAUSTED);
             return 0;
         }
-        FSTRACE(ASYNC_ICONVSTREAM_READ_INPUT_DUMP, stream->uid,
-                stream->inbuf, n);
+        FSTRACE(ASYNC_ICONVSTREAM_READ_INPUT_DUMP, stream->uid, stream->inbuf,
+                n);
         stream->end_in += n;
     }
 }
@@ -167,7 +170,7 @@ FSTRACE_DECL(ASYNC_ICONVSTREAM_CLOSE, "UID=%64u");
 
 void iconvstream_close(iconvstream_t *stream)
 {
-    assert (stream->state != ICONVSTREAM_CLOSED);
+    assert(stream->state != ICONVSTREAM_CLOSED);
     FSTRACE(ASYNC_ICONVSTREAM_CLOSE, stream->uid);
     bytestream_1_close(stream->source);
     iconv_close(stream->iconv);
@@ -214,7 +217,7 @@ static struct bytestream_1_vt iconvstream_vt = {
     .read = _read,
     .close = _close,
     .register_callback = _register_callback,
-    .unregister_callback = _unregister_callback
+    .unregister_callback = _unregister_callback,
 };
 
 bytestream_1 iconvstream_as_bytestream_1(iconvstream_t *stream)

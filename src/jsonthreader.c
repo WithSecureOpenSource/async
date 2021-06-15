@@ -1,17 +1,17 @@
 #include "jsonthreader.h"
 
-#include "json_connection.h"
-#include "tcp_connection.h"
-
-#include <fsdyn/integer.h>
-#include <fstrace.h>
-#include <unixkit/unixkit.h>
-
 #include <assert.h>
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
 #include <sys/wait.h>
+
+#include <fsdyn/integer.h>
+#include <fstrace.h>
+#include <unixkit/unixkit.h>
+
+#include "json_connection.h"
+#include "tcp_connection.h"
 
 struct jsonthreader {
     uint64_t uid;
@@ -79,8 +79,7 @@ static void mt_probe(jsonthreader_bh_t *bh)
     else {
         bh->ready++;
         bh->quota--;
-        FSTRACE(ASYNC_JSONTHREADER_MT_PROBE_PTHREAD_CREATE,
-                bh->ready,
+        FSTRACE(ASYNC_JSONTHREADER_MT_PROBE_PTHREAD_CREATE, bh->ready,
                 bh->quota);
     }
 }
@@ -158,11 +157,8 @@ static void probe(jsonthreader_bh_t *bh)
 FSTRACE_DECL(ASYNC_JSONTHREADER_RUN, "PID=%P");
 FSTRACE_DECL(ASYNC_JSONTHREADER_RUN_ASYNC_FAIL, "PID=%P ERRNO=%e");
 
-static void run(int fd,
-                json_thing_t *(*handler)(void *, json_thing_t *),
-                void *obj,
-                size_t max_frame_size,
-                unsigned max_parallel)
+static void run(int fd, json_thing_t *(*handler)(void *, json_thing_t *),
+                void *obj, size_t max_frame_size, unsigned max_parallel)
 {
     FSTRACE(ASYNC_JSONTHREADER_RUN);
     assert(max_parallel >= 1);
@@ -204,14 +200,10 @@ static void run(int fd,
 FSTRACE_DECL(ASYNC_JSONTHREADER_CREATE,
              "UID=%64u PTR=%p CHILD-PID=%u JSON-CONN=%p");
 
-jsonthreader_t *make_jsonthreader(async_t *async,
-                                  list_t *keep_fds,
-                                  action_1 post_fork_cb,
-                                  json_thing_t *(*handler)(void *,
-                                                           json_thing_t *),
-                                  void *obj,
-                                  size_t max_frame_size,
-                                  unsigned max_parallel)
+jsonthreader_t *make_jsonthreader(
+    async_t *async, list_t *keep_fds, action_1 post_fork_cb,
+    json_thing_t *(*handler)(void *, json_thing_t *), void *obj,
+    size_t max_frame_size, unsigned max_parallel)
 {
     int pairfd[2];
     if (!unixkit_socketpair(AF_UNIX, SOCK_STREAM, 0, pairfd))
@@ -235,10 +227,7 @@ jsonthreader_t *make_jsonthreader(async_t *async,
     threader->child_pid = child_pid;
     tcp_conn_t *tcp_conn = tcp_adopt_connection(async, pairfd[1]);
     threader->conn = open_json_conn(async, tcp_conn, max_frame_size);
-    FSTRACE(ASYNC_JSONTHREADER_CREATE,
-            threader->uid,
-            threader,
-            child_pid,
+    FSTRACE(ASYNC_JSONTHREADER_CREATE, threader->uid, threader, child_pid,
             threader->conn);
     return threader;
 }

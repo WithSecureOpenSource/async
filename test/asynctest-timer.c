@@ -1,9 +1,11 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <errno.h>
-#include <sys/time.h>
-#include <async/async.h>
 #include "asynctest-timer.h"
+
+#include <errno.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <sys/time.h>
+
+#include <async/async.h>
 
 static uint64_t nanoseconds(void)
 {
@@ -72,4 +74,3 @@ VERDICT test_async_timer_cancel(void)
     }
     return posttest_check(PASS);
 }
-

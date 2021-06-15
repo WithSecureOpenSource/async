@@ -1,15 +1,17 @@
+#include "asynctest-framers.h"
+
+#include <assert.h>
 #include <errno.h>
 #include <string.h>
-#include <assert.h>
-#include <fsdyn/fsalloc.h>
-#include <async/chunkframer.h>
+
+#include <async/blobstream.h>
 #include <async/chunkencoder.h>
+#include <async/chunkframer.h>
 #include <async/naiveencoder.h>
 #include <async/naiveframer.h>
-#include <async/queuestream.h>
 #include <async/pacerstream.h>
-#include <async/blobstream.h>
-#include "asynctest-framers.h"
+#include <async/queuestream.h>
+#include <fsdyn/fsalloc.h>
 
 typedef struct {
     async_t *async;
@@ -33,13 +35,9 @@ static void _close(void *obj)
     source->async = NULL;
 }
 
-static void _register_callback(void *obj, action_1 action)
-{
-}
+static void _register_callback(void *obj, action_1 action) {}
 
-static void _unregister_callback(void *obj)
-{
-}
+static void _unregister_callback(void *obj) {}
 
 static struct bytestream_1_vt primesource_vt = {
     .read = _read,
@@ -118,8 +116,7 @@ static void verify_read(tester_t *tester)
         }
         if (tester->cursor != expected) {
             tlog("Unexpected PDU[%u] size %u != %u (expected)",
-                 (unsigned) tester->pdu_count,
-                 (unsigned) tester->cursor,
+                 (unsigned) tester->pdu_count, (unsigned) tester->cursor,
                  (unsigned) expected);
             quit_test(&tester->base);
             return;
@@ -161,7 +158,8 @@ static void verify_receive(tester_t *tester)
             if (tester->pdu_count != 200 * 3)
                 tlog("Final pdu_count %u != %u (expected)",
                      (unsigned) tester->pdu_count, (unsigned) 200 * 3);
-            else tester->base.verdict = PASS;
+            else
+                tester->base.verdict = PASS;
             yield_1_close(tester->framer);
             quit_test(&tester->base);
             break;
@@ -194,8 +192,7 @@ static VERDICT test_framer(void (*enq_pdu)(async_t *, queuestream_t *,
         enq_pdu(async, qstr, make_payload(async, 630001));
     }
     queuestream_terminate(qstr);
-    pacerstream_t *pstr = pace_stream(async,
-                                      queuestream_as_bytestream_1(qstr),
+    pacerstream_t *pstr = pace_stream(async, queuestream_as_bytestream_1(qstr),
                                       5000000, 101, 101010);
     yield_1 framer = open_framer(async, pacerstream_as_bytestream_1(pstr));
     tester_t tester = {

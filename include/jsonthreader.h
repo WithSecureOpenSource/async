@@ -1,10 +1,10 @@
 #ifndef ASYNC_JSONTHREADER_H
 #define ASYNC_JSONTHREADER_H
 
-#include "async.h"
-
 #include <encjson.h>
 #include <fsdyn/list.h>
+
+#include "async.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,14 +20,10 @@ typedef struct jsonthreader jsonthreader_t;
  * is sent as a response to the main process, and can be retrieved
  * using 'jsonthreader_receive'.
  */
-jsonthreader_t *make_jsonthreader(async_t *async,
-                                  list_t *keep_fds,
-                                  action_1 post_fork_cb,
-                                  json_thing_t *(*handler)(void *,
-                                                           json_thing_t *),
-                                  void *obj,
-                                  size_t max_frame_size,
-                                  unsigned max_parallel);
+jsonthreader_t *make_jsonthreader(
+    async_t *async, list_t *keep_fds, action_1 post_fork_cb,
+    json_thing_t *(*handler)(void *, json_thing_t *), void *obj,
+    size_t max_frame_size, unsigned max_parallel);
 void destroy_jsonthreader(jsonthreader_t *threader);
 
 void jsonthreader_register_callback(jsonthreader_t *threader, action_1 action);

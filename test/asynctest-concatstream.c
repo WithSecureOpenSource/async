@@ -1,12 +1,14 @@
-#include <errno.h>
-#include <string.h>
-#include <async/concatstream.h>
-#include <async/stringstream.h>
 #include "asynctest-concatstream.h"
 
-#define CONC_S1 "Stop "
-#define CONC_S2 "right "
-#define CONC_S3 "there!"
+#include <errno.h>
+#include <string.h>
+
+#include <async/concatstream.h>
+#include <async/stringstream.h>
+
+#define CONC_S1  "Stop "
+#define CONC_S2  "right "
+#define CONC_S3  "there!"
 #define CONC_ALL (CONC_S1 CONC_S2 CONC_S3)
 
 VERDICT test_concatstream(void)
@@ -18,17 +20,16 @@ VERDICT test_concatstream(void)
     bytestream_1 streams[] = {
         stringstream_as_bytestream_1(s1),
         stringstream_as_bytestream_1(s2),
-        stringstream_as_bytestream_1(s3)
+        stringstream_as_bytestream_1(s3),
     };
     concatstream_t *conc =
-        concatenate_streams(async, streams,
-                            sizeof streams / sizeof streams[0]);
+        concatenate_streams(async, streams, sizeof streams / sizeof streams[0]);
 
     char buffer[100];
     size_t offset = 0;
     for (;;) {
-        ssize_t count = concatstream_read(conc, buffer + offset,
-                                          sizeof buffer - offset);
+        ssize_t count =
+            concatstream_read(conc, buffer + offset, sizeof buffer - offset);
         if (count < 0) {
             tlog("Unexpected error %d (errno %d) from concatstream",
                  (int) count, (int) errno);

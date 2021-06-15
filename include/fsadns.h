@@ -2,7 +2,9 @@
 
 #include <netdb.h>
 #include <sys/socket.h>
+
 #include <fstrace.h>
+
 #include "async.h"
 
 #ifdef __cplusplus
@@ -30,10 +32,9 @@ void fsadns_destroy_resolver(fsadns_t *dns);
  * is used to suggest when would be a good time to call fsadns_check()
  * again. However, the callback is only guaranteed after
  * fsadns_check() returns with EAI_SYSTEM+EAGAIN. */
-fsadns_query_t *fsadns_resolve(fsadns_t *dns,
-                               const char *node, const char *service,
-                               const struct addrinfo *hints,
-                               action_1 probe);
+fsadns_query_t *fsadns_resolve(fsadns_t *dns, const char *node,
+                               const char *service,
+                               const struct addrinfo *hints, action_1 probe);
 
 /* Collect the address resolution result. See getaddrinfo(3) for the
  * return values. In particular, EAI_SYSTEM with errno == EAGAIN is
@@ -58,10 +59,8 @@ void fsadns_cancel(fsadns_query_t *query);
  * would be a good time to call fsadns_check_name() again. However,
  * the callback is only guaranteed after fsadns_check_name() returns
  * with EAI_SYSTEM+EAGAIN. */
-fsadns_query_t *fsadns_resolve_name(fsadns_t *dns,
-                                    const struct sockaddr *addr,
-                                    socklen_t addrlen,
-                                    int flags,
+fsadns_query_t *fsadns_resolve_name(fsadns_t *dns, const struct sockaddr *addr,
+                                    socklen_t addrlen, int flags,
                                     action_1 probe);
 
 /* Collect the name resolution result. See getnameinfo(3) for the

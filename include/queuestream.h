@@ -2,6 +2,7 @@
 #define __QUEUESTREAM__
 
 #include <stdbool.h>
+
 #include "async.h"
 #include "bytestream_1.h"
 
@@ -52,14 +53,12 @@ void queuestream_push(queuestream_t *qstr, bytestream_1 stream);
 
 /* Append a byte sequence. If the queuestream has been closed but not
  * released, the function produces no effect. */
-void queuestream_enqueue_bytes(queuestream_t *qstr,
-                               const void *blob,
+void queuestream_enqueue_bytes(queuestream_t *qstr, const void *blob,
                                size_t count);
 
 /* Prepend a byte sequence. If the queuestream has been closed but not
  * released, the function produces no effect. */
-void queuestream_push_bytes(queuestream_t *qstr,
-                            const void *blob,
+void queuestream_push_bytes(queuestream_t *qstr, const void *blob,
                             size_t count);
 
 /* Indicate that once the queuestream is exhausted, queuestream_read()

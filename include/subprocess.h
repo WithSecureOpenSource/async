@@ -1,11 +1,11 @@
 #pragma once
 
-#include "async.h"
-#include "bytestream_1.h"
+#include <stdbool.h>
 
 #include <fsdyn/list.h>
 
-#include <stdbool.h>
+#include "async.h"
+#include "bytestream_1.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,10 +24,8 @@ typedef struct subprocess subprocess_t;
  * undefined. This function acquires ownership of the list of file
  * descriptors argument.
  */
-subprocess_t *open_subprocess(async_t *async,
-                              list_t *keep_fds,
-                              bool capture_stdout,
-                              bool capture_stderr,
+subprocess_t *open_subprocess(async_t *async, list_t *keep_fds,
+                              bool capture_stdout, bool capture_stderr,
                               action_1 post_fork_cb);
 
 void subprocess_close(subprocess_t *subprocess);

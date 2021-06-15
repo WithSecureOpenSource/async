@@ -18,8 +18,7 @@ switchstream_t *open_switch_stream(async_t *async, bytestream_1 stream);
 /* Detach from the previous stream and attach a new stream. The
  * previously attached stream is returned. The new stream's callback is
  * immediately registered. The old stream's callback is left intact. */
-bytestream_1 switchstream_reattach(switchstream_t *swstr,
-                                   bytestream_1 stream);
+bytestream_1 switchstream_reattach(switchstream_t *swstr, bytestream_1 stream);
 
 bytestream_1 switchstream_as_bytestream_1(switchstream_t *swstr);
 ssize_t switchstream_read(switchstream_t *swstr, void *buf, size_t count);

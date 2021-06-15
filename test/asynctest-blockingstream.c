@@ -1,10 +1,12 @@
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
+#include "asynctest-blockingstream.h"
+
 #include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <async/async.h>
 #include <async/blockingstream.h>
-#include "asynctest-blockingstream.h"
 
 VERDICT test_blockingstream(void)
 {
@@ -26,8 +28,8 @@ VERDICT test_blockingstream(void)
     destroy_async(async);
     count = read(fd, buffer, sizeof buffer);
     if (count >= 0 || errno != EBADF) {
-        tlog("Unexpected value %d (errno %d) from read",
-             (int) count, (int) errno);
+        tlog("Unexpected value %d (errno %d) from read", (int) count,
+             (int) errno);
         return FAIL;
     }
     return posttest_check(PASS);

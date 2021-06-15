@@ -1,13 +1,13 @@
 #include "asynctest-jsonserver.h"
 
-#include <async/json_connection.h>
-#include <async/jsonserver.h>
-
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
 #include <sys/un.h>
 #include <unistd.h>
+
+#include <async/json_connection.h>
+#include <async/jsonserver.h>
 
 typedef struct {
     tester_base_t base;

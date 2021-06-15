@@ -1,15 +1,18 @@
-#include <string.h>
-#include <errno.h>
+#include "chunkdecoder.h"
+
 #include <assert.h>
-#include <fstrace.h>
+#include <errno.h>
+#include <string.h>
+
 #include <fsdyn/charstr.h>
 #include <fsdyn/fsalloc.h>
+#include <fstrace.h>
+
 #include "async.h"
-#include "chunkdecoder.h"
 #include "async_version.h"
 
-typedef ssize_t (*chunkdecoder_state_t)(chunkdecoder_t *decoder,
-                                        void *buf, size_t size);
+typedef ssize_t (*chunkdecoder_state_t)(chunkdecoder_t *decoder, void *buf,
+                                        size_t size);
 
 struct chunkdecoder {
     async_t *async;
@@ -36,8 +39,7 @@ static ssize_t replenish(chunkdecoder_t *decoder)
     return amount;
 }
 
-static void transition(chunkdecoder_t *decoder,
-                       chunkdecoder_state_t state)
+static void transition(chunkdecoder_t *decoder, chunkdecoder_state_t state)
 {
     decoder->next_state = state;
 }
@@ -75,7 +77,8 @@ static ssize_t read_length(chunkdecoder_t *decoder, void *buf, size_t size)
                 if (decoder->chunk_length == 0 &&
                     decoder->mode == CHUNKDECODER_DETACH_AT_FINAL_EXTENSIONS)
                     transition(decoder, read_exhausted);
-                else transition(decoder, read_extensions);
+                else
+                    transition(decoder, read_extensions);
                 return -1;
             }
             if (decoder->chunk_length > SIZE_MAX / 16)
@@ -105,7 +108,8 @@ static ssize_t read_extensions(chunkdecoder_t *decoder, void *buf, size_t size)
                     transition(decoder, read_chunk_data);
                 else if (decoder->mode == CHUNKDECODER_DETACH_AT_TRAILER)
                     transition(decoder, read_exhausted);
-                else transition(decoder, read_trailer);
+                else
+                    transition(decoder, read_trailer);
                 return -1;
             }
         ssize_t amount = replenish(decoder);
@@ -210,7 +214,8 @@ static ssize_t read_trailer(chunkdecoder_t *decoder, void *buf, size_t size)
         case '\n':
             if (decoder->mode == CHUNKDECODER_ADOPT_INPUT)
                 transition(decoder, read_exhausted_check_eof);
-            else transition(decoder, read_exhausted);
+            else
+                transition(decoder, read_exhausted);
             break;
         case '\r':
             transition(decoder, read_trailer_cr);
@@ -256,7 +261,8 @@ static ssize_t read_trailer_cr(chunkdecoder_t *decoder, void *buf, size_t size)
         case '\n':
             if (decoder->mode == CHUNKDECODER_ADOPT_INPUT)
                 transition(decoder, read_exhausted_check_eof);
-            else transition(decoder, read_exhausted);
+            else
+                transition(decoder, read_exhausted);
             break;
         default:
             transition(decoder, read_trailer_skip);
@@ -423,14 +429,13 @@ static const char *trace_mode(void *pmode)
 FSTRACE_DECL(ASYNC_CHUNKDECODER_CREATE,
              "UID=%64u PTR=%p ASYNC=%p STREAM=%p MODE=%I");
 
-chunkdecoder_t *chunk_decode(async_t *async, bytestream_1 stream,
-                             int mode)
+chunkdecoder_t *chunk_decode(async_t *async, bytestream_1 stream, int mode)
 {
     chunkdecoder_t *decoder = fsalloc(sizeof *decoder);
     decoder->async = async;
     decoder->uid = fstrace_get_unique_id();
-    FSTRACE(ASYNC_CHUNKDECODER_CREATE, decoder->uid, decoder, async,
-            stream.obj, trace_mode, &mode);
+    FSTRACE(ASYNC_CHUNKDECODER_CREATE, decoder->uid, decoder, async, stream.obj,
+            trace_mode, &mode);
     decoder->stream = stream;
     decoder->mode = mode;
     decoder->state = read_length;

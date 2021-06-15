@@ -1,7 +1,7 @@
 struct async {
     uint64_t uid;
     int poll_fd;
-    list_t *immediate;          /* of async_timer_t */
+    list_t *immediate; /* of async_timer_t */
     priorq_t *timers;
     avl_tree_t *registrations;
     volatile bool quit;
@@ -19,7 +19,7 @@ struct async_timer {
     bool immediate;
     void *loc;
     action_1 action;
-    void **stack_trace;      /* Where the timer was scheduled or NULL */
+    void **stack_trace; /* Where the timer was scheduled or NULL */
 };
 
 typedef enum {
@@ -34,5 +34,5 @@ struct async_event {
     uint64_t uid;
     async_event_state_t state;
     action_1 action;
-    void **stack_trace;      /* Where the timer was scheduled or NULL */
+    void **stack_trace; /* Where the timer was scheduled or NULL */
 };

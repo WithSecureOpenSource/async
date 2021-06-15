@@ -1,8 +1,10 @@
+#include "asynctest-nicestream.h"
+
 #include <errno.h>
+
 #include <async/async.h>
 #include <async/nicestream.h>
 #include <async/zerostream.h>
-#include "asynctest-nicestream.h"
 
 typedef struct {
     tester_base_t base;
@@ -16,15 +18,14 @@ static void nice_probe(tester_t *context)
     uint8_t buffer[100];
     ssize_t count = bytestream_1_read(context->stream, buffer, sizeof buffer);
     if (count != sizeof buffer) {
-        tlog("Expected a full buffer, got %d (errno = %d)",
-             (int) count, (int) errno);
+        tlog("Expected a full buffer, got %d (errno = %d)", (int) count,
+             (int) errno);
         quit_test(&context->base);
         return;
     }
     count = bytestream_1_read(context->stream, buffer, sizeof buffer);
     if (count >= 0 || errno != EAGAIN) {
-        tlog("Expected EAGAIN, got %d (errno = %d)",
-             (int) count, (int) errno);
+        tlog("Expected EAGAIN, got %d (errno = %d)", (int) count, (int) errno);
         quit_test(&context->base);
         return;
     }

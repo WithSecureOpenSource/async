@@ -1,44 +1,47 @@
-#include <errno.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <time.h>
+#include "asynctest.h"
+
 #include <assert.h>
+#include <errno.h>
 #include <regex.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
 #include <sys/time.h>
+#include <time.h>
+
 #include <fsdyn/fsalloc.h>
 #include <fstrace.h>
-#include "asynctest.h"
-#include "asynctest-timer.h"
-#include "asynctest-poll.h"
-#include "asynctest-old-school.h"
-#include "asynctest-zerostream.h"
-#include "asynctest-nicestream.h"
-#include "asynctest-emptystream.h"
-#include "asynctest-drystream.h"
-#include "asynctest-blockingstream.h"
-#include "asynctest-stringstream.h"
+
+#include "asynctest-alock.h"
+#include "asynctest-base64encoder.h"
 #include "asynctest-blobstream.h"
+#include "asynctest-blockingstream.h"
 #include "asynctest-chunkdecoder.h"
 #include "asynctest-chunkencoder.h"
-#include "asynctest-queuestream.h"
+#include "asynctest-clobberstream.h"
+#include "asynctest-concatstream.h"
+#include "asynctest-drystream.h"
+#include "asynctest-emptystream.h"
 #include "asynctest-framers.h"
+#include "asynctest-fsadns.h"
+#include "asynctest-iconvstream.h"
 #include "asynctest-json.h"
 #include "asynctest-jsonserver.h"
 #include "asynctest-jsonthreader.h"
-#include "asynctest-multipart.h"
-#include "asynctest-subprocess.h"
-#include "asynctest-alock.h"
-#include "asynctest-concatstream.h"
-#include "asynctest-tcp.h"
-#include "asynctest-pacerstream.h"
-#include "asynctest-probestream.h"
-#include "asynctest-clobberstream.h"
-#include "asynctest-pausestream.h"
-#include "asynctest-base64encoder.h"
-#include "asynctest-iconvstream.h"
-#include "asynctest-fsadns.h"
 #include "asynctest-loop-protected.h"
+#include "asynctest-multipart.h"
+#include "asynctest-nicestream.h"
+#include "asynctest-old-school.h"
+#include "asynctest-pacerstream.h"
+#include "asynctest-pausestream.h"
+#include "asynctest-poll.h"
+#include "asynctest-probestream.h"
+#include "asynctest-queuestream.h"
+#include "asynctest-stringstream.h"
+#include "asynctest-subprocess.h"
+#include "asynctest-tcp.h"
+#include "asynctest-timer.h"
+#include "asynctest-zerostream.h"
 
 static void do_quit(tester_base_t *tester)
 {
@@ -60,9 +63,9 @@ void init_test(tester_base_t *tester, async_t *async, int max_duration)
     tester->async = async;
     tester->verdict = FAIL;
     action_1 timeout_cb = { tester, (act_1) test_timeout };
-    tester->timer = async_timer_start(async,
-                                      async_now(async) + max_duration * ASYNC_S,
-                                      timeout_cb);
+    tester->timer =
+        async_timer_start(async, async_now(async) + max_duration * ASYNC_S,
+                          timeout_cb);
 }
 
 void quit_test(tester_base_t *tester)
@@ -103,7 +106,7 @@ void tlog_string(const char *str)
 }
 
 static int outstanding_object_count = 0;
-static int log_allocation = 0;  /* set in debugger */
+static int log_allocation = 0; /* set in debugger */
 
 static fs_realloc_t reallocator;
 
@@ -163,7 +166,8 @@ static void verify(const char *name, VERDICT (*testcase)(void))
 
 static void bad_usage()
 {
-    fprintf(stderr, "Usage: asynctest [ <options> ]\n"
+    fprintf(stderr,
+            "Usage: asynctest [ <options> ]\n"
             "\n"
             "Options:\n"
             "    --test-include <regex>\n"
@@ -177,7 +181,10 @@ typedef struct {
     VERDICT (*testcase)(void);
 } testcase_t;
 
-#define TESTCASE(tc) { #tc, tc }
+#define TESTCASE(tc) \
+    {                \
+#tc, tc      \
+    }
 
 static const testcase_t testcases[] = {
     TESTCASE(test_async_timer_start),
