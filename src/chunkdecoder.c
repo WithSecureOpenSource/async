@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <fstrace.h>
+#include <fsdyn/charstr.h>
 #include <fsdyn/fsalloc.h>
 #include "async.h"
 #include "chunkdecoder.h"
@@ -22,25 +23,6 @@ struct chunkdecoder {
     size_t chunk_length;
     uint8_t buffer[32];
     size_t low, high;
-};
-
-static int8_t hexdigit[256] = {
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, -1, -1, -1, -1, -1, -1,
-    -1, 10, 11, 12, 13, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, 10, 11, 12, 13, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 };
 
 static ssize_t replenish(chunkdecoder_t *decoder)
@@ -88,8 +70,8 @@ static ssize_t read_length(chunkdecoder_t *decoder, void *buf, size_t size)
         return 0;
     for (;;) {
         for (; decoder->low < decoder->high; decoder->low++) {
-            int digit = hexdigit[decoder->buffer[decoder->low]];
-            if (digit < 0) {
+            unsigned digit = charstr_digit_value(decoder->buffer[decoder->low]);
+            if (digit == -1U) {
                 if (decoder->chunk_length == 0 &&
                     decoder->mode == CHUNKDECODER_DETACH_AT_FINAL_EXTENSIONS)
                     transition(decoder, read_exhausted);
