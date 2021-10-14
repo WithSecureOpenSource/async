@@ -4,6 +4,10 @@
 
 #include "async.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct alock alock_t;
 
 /* Create an object to asynchronously manage an advisory lock on a
@@ -31,3 +35,7 @@ bool alock_check(alock_t *alock, bool *locked);
 
 void alock_register_callback(alock_t *alock, action_1 action);
 void alock_unregister_callback(alock_t *alock);
+
+#ifdef __cplusplus
+}
+#endif
