@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 
+if [ $(uname -m) = i686 ]; then
+    mach=-m32
+else
+    mach=-m64
+fi
+
 flags=(
     --cc=@CC@
     -Iinclude
 )
 
-exec @FSTRACECHECK@ @CPPFLAGS@ "${flags[@]}" src/*.c
+exec @FSTRACECHECK@ $mach @CPPFLAGS@ "${flags[@]}" src/*.c

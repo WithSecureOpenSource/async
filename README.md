@@ -17,13 +17,23 @@ libraries:
 - [fstrace][]
 - [unixkit][]
 
+Before building fsdyn for the first time, run
+```
+git submodule update --init
+```
+
 To build async, run
 ```
-scons prefix=<prefix> install
+scons [ prefix=<prefix> ]
 ```
 from the top-level async directory. The prefix argument is a directory,
-`/usr/local` by default, where the build system searches for `async`
-dependencies and installs `async`.
+`/usr/local` by default, where the build system searches for async
+dependencies and installs async.
+
+To install async, run
+```
+sudo scons [ prefix=<prefix> ] install
+```
 
 ## The Structure of an Async Application
 

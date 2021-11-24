@@ -12,17 +12,19 @@ main () {
         local os=$(uname -m -s)
         case $os in
             "Darwin arm64")
-                run-tests darwin;;
+                run-tests darwin "$@";;
             "Darwin x86_64")
-                run-tests darwin;;
+                run-tests darwin "$@";;
             "FreeBSD amd64")
-                run-tests freebsd_amd64;;
+                run-tests freebsd_amd64 "$@";;
             "Linux i686")
-                run-tests linux32;;
+                run-tests linux32 "$@";;
             "Linux x86_64")
-                run-tests linux64;;
+                run-tests linux64 "$@";;
+            "Linux aarch64")
+                run-tests linux64 "$@";;
             "OpenBSD amd64")
-                run-tests openbsd_amd64;;
+                run-tests openbsd_amd64 "$@";;
             *)
                 echo "$0: Unknown OS architecture: $os" >&2
                 exit 1
@@ -41,6 +43,7 @@ realpath () {
 
 run-tests () {
     local arch=$1
+    shift &&
     echo &&
     echo Start Tests on $arch &&
     echo &&
@@ -51,9 +54,12 @@ run-tests () {
     fi
     rm -rf stage/$arch/test/gcov &&
     mkdir -p stage/$arch/test/gcov &&
-    FSCCFLAGS="$FSCCFLAGS -fprofile-arcs -ftest-coverage -O0" \
-    FSLINKFLAGS="-fprofile-arcs" \
-        ${SCONS:-scons} builddir=test &&
+    if ! FSCCFLAGS="$FSCCFLAGS -fprofile-arcs -ftest-coverage -O0" \
+         FSLINKFLAGS="-fprofile-arcs" \
+         ${SCONS:-scons} builddir=test "$@"; then
+        echo "Did you forget to specify prefix=<prefix> to $0?" >&2
+        false
+    fi &&
     stage/$arch/test/test/fstracecheck &&
     stage/$arch/test/test/asynctest &&
     test-coverage $arch
@@ -103,4 +109,4 @@ pretty-print-err () {
     sed 's!^stage/[^/]*/test/\([^:]*\).gcda:cannot open data file.*!  0.00% \1.c!'
 }
 
-main
+main "$@"
