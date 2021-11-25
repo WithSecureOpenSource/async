@@ -17,7 +17,7 @@ libraries:
 - [fstrace][]
 - [unixkit][]
 
-Before building fsdyn for the first time, run
+Before building async for the first time, run
 ```
 git submodule update --init
 ```
