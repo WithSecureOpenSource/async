@@ -19,7 +19,7 @@ env.ParseConfig(env['CONFIG_PARSER'])
 env.Substfile('fstracecheck.in',
               '#fstracecheck.in',
               SUBST_DICT={
-                  '@ARCH@': env['ARCH'],
+                  '@ARCHBUILDDIR@': env['ARCHBUILDDIR'],
                   '@FSTRACECHECK2@': env['FSTRACECHECK2'],
               }
 )

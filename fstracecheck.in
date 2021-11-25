@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-exec @FSTRACECHECK2@ stage/@ARCH@/build/compile_commands.json
+exec "@FSTRACECHECK2@" "@ARCHBUILDDIR@/compile_commands.json"

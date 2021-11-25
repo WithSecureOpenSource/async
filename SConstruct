@@ -85,6 +85,7 @@ def construct():
             os.path.join(build_dir, "compile_commands.json"))
         for directory in DIRECTORIES:
             env = arch_env.Clone()
+            env.SetCompilationDB(arch_env.GetCompilationDB())
             SConscript(dirs=directory,
                        exports=['env'],
                        duplicate=False,
