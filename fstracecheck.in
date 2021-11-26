@@ -1,8 +1,3 @@
 #!/usr/bin/env bash
 
-flags=(
-    --cc=@CC@
-    -Iinclude
-)
-
-exec @FSTRACECHECK@ @CPPFLAGS@ "${flags[@]}" src/*.c
+exec "@FSTRACECHECK2@" "@ARCHBUILDDIR@/compile_commands.json"
