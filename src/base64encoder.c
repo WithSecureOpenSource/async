@@ -37,10 +37,10 @@ base64encoder_t *base64_encode(async_t *async, bytestream_1 stream, char pos62,
     FSTRACE(ASYNC_BASE64ENCODER_CREATE, encoder->uid, encoder, async,
             stream.obj);
     encoder->stream = stream;
-    encoder->pos62 = pos62 == -1 ? '+' : pos62;
-    encoder->pos63 = pos63 == -1 ? '/' : pos63;
+    encoder->pos62 = pos62 == (char) -1 ? '+' : pos62;
+    encoder->pos63 = pos63 == (char) -1 ? '/' : pos63;
     encoder->pad = pad;
-    encoder->padchar = padchar == -1 ? '=' : padchar;
+    encoder->padchar = padchar == (char) -1 ? '=' : padchar;
     encoder->bit_count = 0;
     encoder->bits = 0; /* don't-care */
     return encoder;
