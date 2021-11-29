@@ -54,7 +54,9 @@ run-tests () {
     fi
     rm -rf stage/$arch/test/gcov &&
     mkdir -p stage/$arch/test/gcov &&
-    if ! FSCCFLAGS="$FSCCFLAGS -fprofile-arcs -ftest-coverage -O0" \
+    local fix_gcc_O0_warning_bug=-Wno-maybe-uninitialized &&
+    local test_flags="-fprofile-arcs -ftest-coverage" &&
+    if ! FSCCFLAGS="$fix_gcc_O0_warning_bug $FSCCFLAGS $test_flags -O0" \
          FSLINKFLAGS="-fprofile-arcs" \
          ${SCONS:-scons} builddir=test "$@"; then
         echo "Did you forget to specify prefix=<prefix> to $0?" >&2
