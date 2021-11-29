@@ -48,6 +48,7 @@ static void probe_it(tester_t *context)
     }
 
     uint8_t buffer[100];
+    uint8_t dont_care = 0;
     ssize_t count;
     switch (context->state) {
         case READING:
@@ -70,7 +71,7 @@ static void probe_it(tester_t *context)
             context->state = WRITING;
             return;
         case WRITING:
-            count = write(context->sd[0], buffer, 1);
+            count = write(context->sd[0], &dont_care, 1);
             if (count != 1) {
                 tlog("Write returned %d (errno = %d)", (int) count,
                      (int) errno);
