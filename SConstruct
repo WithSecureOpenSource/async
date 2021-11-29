@@ -76,7 +76,7 @@ def construct():
             tools=['default', 'textfile', 'fscomp', 'scons_compilation_db'])
         fsenv.consider_environment_variables(arch_env)
         if target_arch == "darwin":
-            env.AppendENVPath("PATH", "/opt/local/bin")
+            arch_env.AppendENVPath("PATH", "/opt/local/bin")
         build_dir = os.path.join(
             fsenv.STAGE,
             target_arch,

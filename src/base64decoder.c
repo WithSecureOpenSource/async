@@ -28,8 +28,8 @@ base64decoder_t *base64_decode(async_t *async, bytestream_1 stream, char pos62,
     FSTRACE(ASYNC_BASE64DECODER_CREATE, decoder->uid, decoder, async,
             stream.obj);
     decoder->stream = stream;
-    decoder->pos62 = pos62 == -1 ? '+' : pos62;
-    decoder->pos63 = pos63 == -1 ? '/' : pos63;
+    decoder->pos62 = pos62 == (char) -1 ? '+' : pos62;
+    decoder->pos63 = pos63 == (char) -1 ? '/' : pos63;
     decoder->bit_count = 0;
     decoder->bits = 0; /* don't-care */
     return decoder;
@@ -51,7 +51,7 @@ FSTRACE_DECL(ASYNC_BASE64DECODER_READ_INPUT_DUMP, "UID=%64u TEXT=%A");
 
 static ssize_t decoder_read(base64decoder_t *decoder, void *buf, size_t count)
 {
-    if (!count || decoder->bit_count == -1)
+    if (!count || decoder->bit_count == (size_t) -1)
         return 0;
     uint8_t *q = buf;
     do {
