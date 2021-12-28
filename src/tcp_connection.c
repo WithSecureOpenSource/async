@@ -786,8 +786,15 @@ tcp_conn_t *tcp_connect(async_t *async, const struct sockaddr *from,
     }
     if (errno == EINPROGRESS) {
         FSTRACE(ASYNC_TCP_CONNECT_IN_PROGRESS, uid);
-        /* We must not invoke socket_probe before epoll tells us to. */
-        return adopt_connection(async, uid, connfd);
+        tcp_conn_t *conn = adopt_connection(async, uid, connfd);
+#ifdef __linux__
+        /* We MUST NOT invoke socket_probe before epoll tells us to. */
+#else
+        /* We MUST invoke socket_probe when kevent is used. */
+        if (conn)
+            schedule_socket_probe(conn);
+#endif
+        return conn;
     }
     FSTRACE(ASYNC_TCP_CONNECT_FAIL, uid);
     int err = errno;
