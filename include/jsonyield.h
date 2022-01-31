@@ -20,7 +20,7 @@ typedef struct jsonyield jsonyield_t;
  * allowed in JSON, there should be no need for escaping.
  *
  * As a safety precaution, a maximum frame size can be specified. Longer
- * frames result in EOVERFLOW for each oversize frame. The oversize
+ * frames result in EMSGSIZE for each oversize frame. The oversize
  * frame can be skipped gracefully, though, and the user can continue
  * receiving more JSON things. */
 jsonyield_t *open_jsonyield(async_t *async, bytestream_1 source,
