@@ -87,18 +87,21 @@ static json_thing_t *handle_request(void *obj, json_thing_t *request)
     return response;
 }
 
-FSTRACE_DECL(ASYNC_ALOCK_CREATE, "UID=%64u ASYNC=%p PATH=%s THREADER=%p");
+FSTRACE_DECL(ASYNC_ALOCK_CREATE, "UID=%64u ASYNC=%p FD=%d PATH=%s THREADER=%p");
 FSTRACE_DECL(ASYNC_ALOCK_CREATE_JSONTHREADER_FAIL, "ERROR=%e");
 
-alock_t *make_alock(async_t *async, const char *path, action_1 post_fork_cb)
+static alock_t *create_alock(async_t *async, int lock_fd, const char *path,
+                             action_1 post_fork_cb)
 {
     alock_ctx_t *ctx = fsalloc(sizeof *ctx);
-    ctx->lock_fd = -1;
+    ctx->lock_fd = lock_fd;
     ctx->path = path;
     list_t *keep_fds = make_list();
     list_append(keep_fds, as_integer(0));
     list_append(keep_fds, as_integer(1));
     list_append(keep_fds, as_integer(2));
+    if (lock_fd > 2)
+        list_append(keep_fds, as_integer(lock_fd));
     jsonthreader_t *threader = make_jsonthreader(async, keep_fds, post_fork_cb,
                                                  handle_request, ctx, 8192, 1);
     fsfree(ctx);
@@ -111,8 +114,18 @@ alock_t *make_alock(async_t *async, const char *path, action_1 post_fork_cb)
     alock->uid = fstrace_get_unique_id();
     alock->threader = threader;
     alock->state = ALOCK_IDLE;
-    FSTRACE(ASYNC_ALOCK_CREATE, alock->uid, async, path, threader);
+    FSTRACE(ASYNC_ALOCK_CREATE, alock->uid, async, lock_fd, path, threader);
     return alock;
+}
+
+alock_t *make_alock(async_t *async, const char *path, action_1 post_fork_cb)
+{
+    return create_alock(async, -1, path, post_fork_cb);
+}
+
+alock_t *make_alock_from_fd(async_t *async, int fd, action_1 post_fork_cb)
+{
+    return create_alock(async, fd, NULL, post_fork_cb);
 }
 
 FSTRACE_DECL(ASYNC_ALOCK_DESTROY, "UID=%64u");
