@@ -15,6 +15,12 @@ typedef struct alock alock_t;
  * exclusively in the subprocess on the first lock or unlock
  * operation. */
 alock_t *make_alock(async_t *async, const char *path, action_1 post_fork_cb);
+
+/* Create an object to asynchronously manage an advisory lock (in
+ * exclusive mode) on an open file specified by an fd using flock(2) in a
+ * subprocess. */
+alock_t *make_alock_from_fd(async_t *async, int fd, action_1 post_fork_cb);
+
 void destroy_alock(alock_t *alock);
 /*
  * Lock or unlock the underlying file. On failure, false is returned
