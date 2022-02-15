@@ -6,7 +6,7 @@ main () {
         local archs=()
         IFS=, read -ra archs <<< "$FSARCHS"
         for arch in "${archs[@]}" ; do
-            run-tests "$arch"
+            run-tests "$arch" "$@"
         done
     else
         local os=$(uname -m -s)
@@ -22,7 +22,7 @@ main () {
             "Linux x86_64")
                 run-tests linux64 "$@";;
             "Linux aarch64")
-                run-tests linux64 "$@";;
+                run-tests linux64_arm64 "$@";;
             "OpenBSD amd64")
                 run-tests openbsd_amd64 "$@";;
             *)
@@ -33,7 +33,7 @@ main () {
 }
 
 realpath () {
-    if [ -x "/bin/realpath" ]; then
+    if [ -x /bin/realpath ]; then
         /bin/realpath "$@"
     else
         python -c "import os.path, sys; print(os.path.realpath(sys.argv[1]))" \
@@ -52,7 +52,11 @@ run-tests () {
         stage/$arch/build/test/asynctest
         return
     fi
-    rm -rf stage/$arch/test/gcov &&
+    # The generated .gcda and .gcno files are not rewritten on
+    # rebuild, which leads to errors and/or bad stats. I don't know a
+    # better way around the problem but to get rid of the whole target
+    # directory each time:
+    rm -rf stage/$arch/test &&
     mkdir -p stage/$arch/test/gcov &&
     local fix_gcc_O0_warning_bug=-Wno-maybe-uninitialized &&
     local test_flags="-fprofile-arcs -ftest-coverage" &&
