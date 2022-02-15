@@ -218,7 +218,7 @@ static void probe_query(query_t *query)
         case EAI_SYSTEM:
             if (errno == EAGAIN)
                 return;
-            dump_query_failure(query->address, errno);
+            dump_query_failure(query->address, err);
             quit_test(&query->g->base);
             return;
 #ifdef EAI_NODATA
@@ -228,7 +228,7 @@ static void probe_query(query_t *query)
             dump_query_failure(query->address, err);
             break;
         default:
-            dump_query_failure(query->address, errno);
+            dump_query_failure(query->address, err);
             quit_test(&query->g->base);
             return;
     }
@@ -260,26 +260,31 @@ static void probe_name_query(query_t *query)
     int err = fsadns_check_name(query->fq, &host, &serv);
     switch (err) {
         case 0:
+            tlog("%s resolved; host = %s, serv = %s",
+                 query->address, host, serv);
+            tlog_string("");
+            fsfree(host);
+            fsfree(serv);
             break;
         case EAI_SYSTEM:
             if (errno == EAGAIN)
                 return;
-            dump_query_failure(query->address, errno);
+            dump_query_failure(query->address, err);
             quit_test(&query->g->base);
             return;
+        case EAI_AGAIN:
+            /* Returned by systemd-resolved for 255.255.255.255 */
+            dump_query_failure(query->address, err);
+            break;
         default:
             dump_query_failure(query->address, err);
             quit_test(&query->g->base);
             return;
     }
-    tlog("%s resolved; host = %s, serv = %s", query->address, host, serv);
-    tlog_string("");
     list_remove(query->g->queries, query->loc);
     if (list_empty(query->g->queries)) {
         quit_test(&query->g->base);
     }
-    fsfree(host);
-    fsfree(serv);
     fsfree(query);
 }
 
