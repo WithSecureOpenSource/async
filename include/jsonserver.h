@@ -33,6 +33,12 @@ jsonreq_t *jsonserver_receive_request(jsonserver_t *server);
 json_thing_t *jsonreq_get_body(jsonreq_t *request);
 void jsonreq_respond(jsonreq_t *request, json_thing_t *body);
 
+/* The callback is invoked if the request is canceled. In this case,
+ * the application should respond immediately. */
+void jsonreq_register_cancellation_callback(jsonreq_t *request,
+                                            action_1 action);
+void jsonreq_unregister_cancellation_callback(jsonreq_t *request);
+
 #ifdef __cplusplus
 }
 #endif
