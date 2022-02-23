@@ -30,12 +30,14 @@ typedef struct conn {
     queuestream_t *output_stream;
     jsonyield_t *input_stream;
     bool input_closed;
-    uint32_t reference_count;
+    list_t *requests;
 } conn_t;
 
 struct jsonreq {
     conn_t *conn;
     json_thing_t *body;
+    list_elem_t *loc;
+    action_1 callback;
 };
 
 struct jsonserver {
@@ -53,15 +55,24 @@ static jsonreq_t *create_jsonreq(conn_t *conn, json_thing_t *body)
     jsonreq_t *request = fsalloc(sizeof *request);
     request->conn = conn;
     request->body = body;
-    conn->reference_count++;
+    request->loc = list_append(conn->requests, request);
+    request->callback = NULL_ACTION_1;
     return request;
 }
 
 static void jsonreq_destroy(jsonreq_t *request)
 {
-    request->conn->reference_count--;
+    list_remove(request->conn->requests, request->loc);
     json_destroy_thing(request->body);
     fsfree(request);
+}
+
+FSTRACE_DECL(ASYNC_JSONREQ_CANCEL, "CONN-ID=%64u REQ=%p");
+
+static void jsonreq_cancel(jsonreq_t *request)
+{
+    FSTRACE(ASYNC_JSONREQ_CANCEL, request->conn->uid, request);
+    async_execute(request->conn->server->async, request->callback);
 }
 
 static const char *conn_trace_state(conn_state_t *state)
@@ -93,6 +104,15 @@ static void conn_terminate(conn_t *conn)
     queuestream_terminate(conn->output_stream);
 }
 
+static void conn_cancel_requests(conn_t *conn)
+{
+    for (list_elem_t *element = list_get_first(conn->requests); element;
+         element = list_next(element)) {
+        jsonreq_t *request = (jsonreq_t *) list_elem_get_value(element);
+        jsonreq_cancel(request);
+    }
+}
+
 FSTRACE_DECL(ASYNC_JSONSERVER_CONN_PROBE, "UID=%64u REQ=%p");
 FSTRACE_DECL(ASYNC_JSONSERVER_CONN_PROBE_SPURIOUS, "UID=%64u");
 FSTRACE_DECL(ASYNC_JSONSERVER_CONN_READ_EOF, "UID=%64u");
@@ -117,8 +137,10 @@ static void conn_probe(conn_t *conn)
         else
             FSTRACE(ASYNC_JSONSERVER_CONN_READ_FAIL, conn->uid);
         conn->input_closed = true;
-        if (conn->reference_count == 0)
+        if (list_size(conn->requests) == 0)
             conn_terminate(conn);
+        else
+            conn_cancel_requests(conn);
         return;
     }
     jsonreq_t *request = create_jsonreq(conn, thing);
@@ -135,6 +157,7 @@ static void conn_close(conn_t *conn)
     queuestream_release(conn->output_stream);
     jsonyield_close(conn->input_stream);
     tcp_close(conn->tcp_conn);
+    destroy_list(conn->requests);
     async_wound(conn->server->async, conn);
 }
 
@@ -150,7 +173,7 @@ static void conn_output_closed(conn_t *conn)
             return;
     }
     FSTRACE(ASYNC_JSONSERVER_CONN_OUTPUT_CLOSED, conn->uid);
-    if (conn->reference_count == 0)
+    if (list_size(conn->requests) == 0)
         conn_close(conn);
 }
 
@@ -163,7 +186,7 @@ static void open_connection(jsonserver_t *server, tcp_conn_t *tcp_conn)
     conn->uid = fstrace_get_unique_id();
     conn->state = CONN_OPEN;
     conn->input_closed = false;
-    conn->reference_count = 0;
+    conn->requests = make_list();
     conn->loc = list_append(server->connections, conn);
     conn->tcp_conn = tcp_conn;
     conn->output_stream = make_relaxed_queuestream(server->async);
@@ -291,12 +314,24 @@ void jsonreq_respond(jsonreq_t *request, json_thing_t *body)
             naive_encode(conn->server->async, payload, '\0', '\33');
         queuestream_enqueue(conn->output_stream,
                             naiveencoder_as_bytestream_1(naive_encoder));
-        if (conn->reference_count == 0 && conn->input_closed)
+        if (list_size(conn->requests) == 0 && conn->input_closed)
             conn_terminate(conn);
     } else {
         FSTRACE(ASYNC_JSONREQ_RESPOND_DISCONNECTED, conn->uid, request,
                 json_trace, body);
-        if (conn->reference_count == 0)
+        if (list_size(conn->requests) == 0)
             conn_close(conn);
     }
+}
+
+void jsonreq_register_cancellation_callback(jsonreq_t *request, action_1 action)
+{
+    request->callback = action;
+    if (request->conn->input_closed)
+        jsonreq_cancel(request);
+}
+
+void jsonreq_unregister_cancellation_callback(jsonreq_t *request)
+{
+    request->callback = NULL_ACTION_1;
 }

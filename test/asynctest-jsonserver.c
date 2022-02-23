@@ -13,7 +13,22 @@ typedef struct {
     tester_base_t base;
     jsonserver_t *server;
     json_conn_t *conn;
+    jsonreq_t *request;
 } tester_t;
+
+static void respond(jsonreq_t *request, int id)
+{
+    json_thing_t *thing = json_make_integer(id);
+    jsonreq_respond(request, thing);
+    json_destroy_thing(thing);
+}
+
+static void cancellation_cb(tester_t *tester)
+{
+    respond(tester->request, 1);
+    tester->base.verdict = PASS;
+    quit_test(&tester->base);
+}
 
 static void probe_server(tester_t *tester)
 {
@@ -27,12 +42,30 @@ static void probe_server(tester_t *tester)
     }
     json_thing_t *body = jsonreq_get_body(req);
     long long value;
-    if (!json_cast_to_integer(body, &value) || value != 0) {
+    if (!json_cast_to_integer(body, &value)) {
         quit_test(&tester->base);
         return;
     }
-    json_thing_t *thing = json_make_integer(1);
-    jsonreq_respond(req, thing);
+
+    switch (value) {
+        case 0:
+            respond(req, 1);
+            break;
+        case 1:
+            tester->request = req;
+            action_1 action = { tester, (act_1) cancellation_cb };
+            jsonreq_register_cancellation_callback(req, action);
+            break;
+        default:
+            quit_test(&tester->base);
+            break;
+    }
+}
+
+static void send_request(json_conn_t *conn, int id)
+{
+    json_thing_t *thing = json_make_integer(id);
+    json_conn_send(conn, thing);
     json_destroy_thing(thing);
 }
 
@@ -47,10 +80,12 @@ static void probe_conn(tester_t *tester)
         return;
     }
     long long value;
-    if (json_cast_to_integer(thing, &value) && value == 1)
-        tester->base.verdict = PASS;
+    if (json_cast_to_integer(thing, &value) && value == 1) {
+        send_request(tester->conn, 1);
+        json_conn_terminate(tester->conn);
+    } else
+        quit_test(&tester->base);
     json_destroy_thing(thing);
-    quit_test(&tester->base);
 }
 
 VERDICT test_jsonserver(void)
@@ -87,9 +122,7 @@ VERDICT test_jsonserver(void)
     json_conn_register_callback(tester.conn, conn_cb);
     async_execute(async, conn_cb);
 
-    json_thing_t *thing = json_make_integer(0);
-    json_conn_send(tester.conn, thing);
-    json_destroy_thing(thing);
+    send_request(tester.conn, 0);
     if (async_loop(async) < 0)
         tlog("Unexpected error from async_loop: %d", errno);
     json_conn_close(tester.conn);
