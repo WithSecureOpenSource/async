@@ -83,7 +83,7 @@ static ssize_t read_frame(void *obj, void *buf, size_t count)
     return bytestream_1_read(*stream, buf, count);
 }
 
-FSTRACE_DECL(ASYNC_JSONYIELD_INPUT_DUMP, "UID=%64u TEXT=%A");
+FSTRACE_DECL(ASYNC_JSONYIELD_INPUT_DUMP, "UID=%64u DATA=%A");
 
 static json_thing_t *do_receive(jsonyield_t *yield)
 {

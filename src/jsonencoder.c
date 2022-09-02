@@ -39,7 +39,7 @@ size_t jsonencoder_size(jsonencoder_t *encoder)
 }
 
 FSTRACE_DECL(ASYNC_JSONENCODER_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_JSONENCODER_READ_DUMP, "UID=%64u TEXT=%A");
+FSTRACE_DECL(ASYNC_JSONENCODER_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t jsonencoder_read(jsonencoder_t *encoder, void *buf, size_t count)
 {

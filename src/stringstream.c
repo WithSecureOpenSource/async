@@ -18,7 +18,7 @@ struct stringstream {
 };
 
 FSTRACE_DECL(ASYNC_STRINGSTREAM_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_STRINGSTREAM_READ_DUMP, "UID=%64u TEXT=%A");
+FSTRACE_DECL(ASYNC_STRINGSTREAM_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t stringstream_read(stringstream_t *strstr, void *buf, size_t count)
 {

@@ -104,7 +104,7 @@ bool reservoir_fill(reservoir_t *reservoir)
 }
 
 FSTRACE_DECL(ASYNC_RESERVOIR_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_RESERVOIR_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_RESERVOIR_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t reservoir_read(reservoir_t *reservoir, void *buf, size_t count)
 {

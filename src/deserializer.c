@@ -89,7 +89,7 @@ static ssize_t do_read(deserializer_t *deserializer, void *buf, size_t count)
 }
 
 FSTRACE_DECL(ASYNC_DESERIALIZER_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_DESERIALIZER_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_DESERIALIZER_READ_DUMP, "UID=%64u DATA=%A");
 
 static ssize_t frame_read(void *obj, void *buf, size_t count)
 {

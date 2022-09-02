@@ -53,7 +53,7 @@ static ssize_t do_read(tricklestream_t *trickle, void *buf, size_t count)
 }
 
 FSTRACE_DECL(ASYNC_TRICKLESTREAM_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_TRICKLESTREAM_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_TRICKLESTREAM_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t tricklestream_read(tricklestream_t *trickle, void *buf, size_t count)
 {

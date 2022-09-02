@@ -29,7 +29,7 @@ static void retry(nicestream_t *nice)
 
 FSTRACE_DECL(ASYNC_NICESTREAM_BACK_OFF, "UID=%64u WANT=%z");
 FSTRACE_DECL(ASYNC_NICESTREAM_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_NICESTREAM_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_NICESTREAM_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t nicestream_read(nicestream_t *nice, void *buf, size_t count)
 {

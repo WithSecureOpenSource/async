@@ -298,7 +298,7 @@ static ssize_t read_errored(chunkdecoder_t *decoder, void *buf, size_t size)
 }
 
 FSTRACE_DECL(ASYNC_CHUNKDECODER_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_CHUNKDECODER_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_CHUNKDECODER_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t chunkdecoder_read(chunkdecoder_t *decoder, void *buf, size_t size)
 {

@@ -101,7 +101,7 @@ static size_t ancillary_data_info(struct cmsghdr *cp, int *level, int *type)
 
 FSTRACE_DECL(ASYNC_TCP_RECEIVE_ANCILLARY, "UID=%64u SIZE=%z");
 FSTRACE_DECL(ASYNC_TCP_RECEIVE_ANCILLARY_FD, "UID=%64u FD=%d");
-FSTRACE_DECL(ASYNC_TCP_RECEIVE_ANCILLARY_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_TCP_RECEIVE_ANCILLARY_DUMP, "UID=%64u DATA=%A");
 
 static void receive_ancillary_data(tcp_conn_t *conn, struct cmsghdr *cp)
 {
@@ -161,7 +161,7 @@ static ssize_t receive(tcp_conn_t *conn, void *buf, size_t size)
 
 FSTRACE_DECL(ASYNC_TCP_READ_INACTIVE, "UID=%64u WANT=%z");
 FSTRACE_DECL(ASYNC_TCP_READ, "UID=%64u WANT=%z GOT=%z");
-FSTRACE_DECL(ASYNC_TCP_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_TCP_READ_DUMP, "UID=%64u DATA=%A");
 FSTRACE_DECL(ASYNC_TCP_READ_EOF, "UID=%64u WANT=%z");
 FSTRACE_DECL(ASYNC_TCP_READ_FAILED, "UID=%64u WANT=%z ERRNO=%e");
 FSTRACE_DECL(ASYNC_TCP_READ_CONNECTING, "UID=%64u WANT=%z");
@@ -438,7 +438,7 @@ static void schedule_user_probe(tcp_conn_t *conn);
 FSTRACE_DECL(ASYNC_TCP_REPLENISH_FAIL, "UID=%64u ERRNO=%e");
 FSTRACE_DECL(ASYNC_TCP_REPLENISH_EOF, "UID=%64u");
 FSTRACE_DECL(ASYNC_TCP_REPLENISH, "UID=%64u GOT=%z");
-FSTRACE_DECL(ASYNC_TCP_REPLENISH_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_TCP_REPLENISH_DUMP, "UID=%64u DATA=%A");
 
 static void replenish_outbuf(tcp_conn_t *conn)
 {
@@ -480,12 +480,12 @@ static void replenish_outbuf(tcp_conn_t *conn)
 
 FSTRACE_DECL(ASYNC_TCP_SEND_FAIL, "UID=%64u WANT=%z ERRNO=%e");
 FSTRACE_DECL(ASYNC_TCP_SEND, "UID=%64u WANT=%z GOT=%z");
-FSTRACE_DECL(ASYNC_TCP_SEND_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_TCP_SEND_DUMP, "UID=%64u DATA=%A");
 FSTRACE_DECL(ASYNC_TCP_SENDMSG_ANCILLARY, "UID=%64u SIZE=%z");
-FSTRACE_DECL(ASYNC_TCP_SENDMSG_ANCILLARY_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_TCP_SENDMSG_ANCILLARY_DUMP, "UID=%64u DATA=%A");
 FSTRACE_DECL(ASYNC_TCP_SENDMSG_FAIL, "UID=%64u WANT=%z ERRNO=%e");
 FSTRACE_DECL(ASYNC_TCP_SENDMSG, "UID=%64u WANT=%z GOT=%z");
-FSTRACE_DECL(ASYNC_TCP_SENDMSG_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_TCP_SENDMSG_DUMP, "UID=%64u DATA=%A");
 
 static ssize_t transmit(tcp_conn_t *conn, size_t remaining)
 {
@@ -927,7 +927,7 @@ ssize_t tcp_peek_ancillary_data(tcp_conn_t *conn, int *level, int *type)
 
 FSTRACE_DECL(ASYNC_TCP_RECV_ANCILLARY_FAIL, "UID=%64u ERRNO=%e");
 FSTRACE_DECL(ASYNC_TCP_RECV_ANCILLARY, "UID=%64u SIZE=%z");
-FSTRACE_DECL(ASYNC_TCP_RECV_ANCILLARY_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_TCP_RECV_ANCILLARY_DUMP, "UID=%64u DATA=%A");
 
 ssize_t tcp_recv_ancillary_data(tcp_conn_t *conn, void *buf, size_t size)
 {
@@ -1003,7 +1003,7 @@ list_t *tcp_peek_received_fds(tcp_conn_t *conn)
 }
 
 FSTRACE_DECL(ASYNC_TCP_SEND_ANCILLARY, "UID=%64u SIZE=%z");
-FSTRACE_DECL(ASYNC_TCP_SEND_ANCILLARY_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_TCP_SEND_ANCILLARY_DUMP, "UID=%64u DATA=%A");
 
 ssize_t tcp_send_ancillary_data(tcp_conn_t *conn, int level, int type,
                                 const void *buf, size_t size)

@@ -18,7 +18,7 @@ struct farewellstream {
 };
 
 FSTRACE_DECL(ASYNC_FAREWELLSTREAM_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_FAREWELLSTREAM_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_FAREWELLSTREAM_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t farewellstream_read(farewellstream_t *fwstr, void *buf, size_t count)
 {

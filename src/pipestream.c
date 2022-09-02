@@ -18,7 +18,7 @@ struct pipestream {
 };
 
 FSTRACE_DECL(ASYNC_PIPESTREAM_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_PIPESTREAM_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_PIPESTREAM_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t pipestream_read(pipestream_t *pipestr, void *buf, size_t count)
 {
