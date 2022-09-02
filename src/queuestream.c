@@ -188,7 +188,7 @@ static ssize_t do_read(queuestream_t *qstr, void *buf, size_t count)
 }
 
 FSTRACE_DECL(ASYNC_QUEUESTREAM_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_QUEUESTREAM_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_QUEUESTREAM_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t queuestream_read(queuestream_t *qstr, void *buf, size_t count)
 {

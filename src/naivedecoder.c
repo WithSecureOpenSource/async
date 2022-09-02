@@ -94,7 +94,7 @@ static ssize_t do_read(naivedecoder_t *decoder, void *buf, size_t size)
 }
 
 FSTRACE_DECL(ASYNC_NAIVEDECODER_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_NAIVEDECODER_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_NAIVEDECODER_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t naivedecoder_read(naivedecoder_t *decoder, void *buf, size_t size)
 {

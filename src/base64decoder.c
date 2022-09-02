@@ -47,7 +47,7 @@ static int8_t map(base64decoder_t *decoder, uint8_t c)
     return -1;
 }
 
-FSTRACE_DECL(ASYNC_BASE64DECODER_READ_INPUT_DUMP, "UID=%64u TEXT=%A");
+FSTRACE_DECL(ASYNC_BASE64DECODER_READ_INPUT_DUMP, "UID=%64u DATA=%A");
 
 static ssize_t decoder_read(base64decoder_t *decoder, void *buf, size_t count)
 {
@@ -80,7 +80,7 @@ static ssize_t decoder_read(base64decoder_t *decoder, void *buf, size_t count)
 }
 
 FSTRACE_DECL(ASYNC_BASE64DECODER_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_BASE64DECODER_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_BASE64DECODER_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t base64decoder_read(base64decoder_t *decoder, void *buf, size_t count)
 {

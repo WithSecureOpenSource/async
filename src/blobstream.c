@@ -25,7 +25,7 @@ size_t blobstream_remaining(blobstream_t *blobstr)
 }
 
 FSTRACE_DECL(ASYNC_BLOBSTREAM_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_BLOBSTREAM_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_BLOBSTREAM_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t blobstream_read(blobstream_t *blobstr, void *buf, size_t count)
 {
@@ -115,7 +115,7 @@ static blobstream_t *make_blobstream(async_t *async, uint64_t uid,
 }
 
 FSTRACE_DECL(ASYNC_BLOBSTREAM_OPEN, "UID=%64u ASYNC=%p BLOB-SIZE=%z");
-FSTRACE_DECL(ASYNC_BLOBSTREAM_BLOB_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_BLOBSTREAM_BLOB_DUMP, "UID=%64u DATA=%A");
 
 blobstream_t *open_blobstream(async_t *async, const void *blob, size_t count)
 {

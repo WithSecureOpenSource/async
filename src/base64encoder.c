@@ -142,7 +142,7 @@ static ssize_t do_read(base64encoder_t *encoder, void *buf, size_t count)
 }
 
 FSTRACE_DECL(ASYNC_BASE64ENCODER_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_BASE64ENCODER_READ_DUMP, "UID=%64u TEXT=%A");
+FSTRACE_DECL(ASYNC_BASE64ENCODER_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t base64encoder_read(base64encoder_t *encoder, void *buf, size_t count)
 {

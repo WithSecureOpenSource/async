@@ -24,7 +24,7 @@ FSTRACE_DECL(ASYNC_PAUSESTREAM_READ_PAUSED,
              "UID=%64u WANT=%z LIMIT=%64u CURSOR=%64u");
 FSTRACE_DECL(ASYNC_PAUSESTREAM_READ,
              "UID=%64u WANT=%z GOT=%z CURSOR=%64u ERRNO=%e");
-FSTRACE_DECL(ASYNC_PAUSESTREAM_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_PAUSESTREAM_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t pausestream_read(pausestream_t *pausestr, void *buf, size_t count)
 {

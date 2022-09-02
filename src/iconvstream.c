@@ -75,7 +75,7 @@ static void set_state(iconvstream_t *stream, iconvstream_state_t state)
     stream->state = state;
 }
 
-FSTRACE_DECL(ASYNC_ICONVSTREAM_READ_INPUT_DUMP, "UID=%64u TEXT=%A");
+FSTRACE_DECL(ASYNC_ICONVSTREAM_READ_INPUT_DUMP, "UID=%64u DATA=%A");
 
 static ssize_t consume_outbuf(iconvstream_t *stream, void *buf, size_t count)
 {
@@ -156,7 +156,7 @@ static ssize_t stream_read(iconvstream_t *stream, void *buf, size_t count)
 }
 
 FSTRACE_DECL(ASYNC_ICONVSTREAM_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_ICONVSTREAM_READ_DUMP, "UID=%64u TEXT=%A");
+FSTRACE_DECL(ASYNC_ICONVSTREAM_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t iconvstream_read(iconvstream_t *stream, void *buf, size_t count)
 {

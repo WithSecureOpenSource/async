@@ -33,7 +33,7 @@ static void retry(pacerstream_t *pacer)
 
 FSTRACE_DECL(ASYNC_PACERSTREAM_READ_POSTPONE, "UID=%64u WANT=%z");
 FSTRACE_DECL(ASYNC_PACERSTREAM_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_PACERSTREAM_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_PACERSTREAM_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t pacerstream_read(pacerstream_t *pacer, void *buf, size_t count)
 {

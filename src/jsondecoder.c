@@ -41,7 +41,7 @@ static ssize_t read_frame(void *obj, void *buf, size_t count)
 }
 
 FSTRACE_DECL(ASYNC_JSONDECODER_RECEIVE_SYNTAX_ERROR, "UID=%64u");
-FSTRACE_DECL(ASYNC_JSONDECODER_RECEIVE_INPUT_DUMP, "UID=%64u TEXT=%A");
+FSTRACE_DECL(ASYNC_JSONDECODER_RECEIVE_INPUT_DUMP, "UID=%64u DATA=%A");
 
 static json_thing_t *do_receive(jsondecoder_t *decoder)
 {

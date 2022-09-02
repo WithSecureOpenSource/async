@@ -17,7 +17,7 @@ struct blockingstream {
 };
 
 FSTRACE_DECL(ASYNC_BLOCKINGSTREAM_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_BLOCKINGSTREAM_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_BLOCKINGSTREAM_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t blockingstream_read(blockingstream_t *blockingstr, void *buf,
                             size_t count)

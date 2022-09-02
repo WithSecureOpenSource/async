@@ -69,7 +69,7 @@ static ssize_t do_read(substream_t *substr, void *buf, size_t count)
 }
 
 FSTRACE_DECL(ASYNC_SUBSTREAM_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_SUBSTREAM_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_SUBSTREAM_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t substream_read(substream_t *substr, void *buf, size_t count)
 {

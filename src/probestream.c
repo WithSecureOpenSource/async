@@ -46,7 +46,7 @@ static void _unregister_callback(void *obj)
 }
 
 FSTRACE_DECL(ASYNC_PROBESTREAM_READ, "UID=%64u WANT=%z GOT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_PROBESTREAM_READ_DUMP, "UID=%64u DATA=%B");
+FSTRACE_DECL(ASYNC_PROBESTREAM_READ_DUMP, "UID=%64u DATA=%A");
 
 ssize_t probestream_read(probestream_t *probestr, void *buf, size_t count)
 {
