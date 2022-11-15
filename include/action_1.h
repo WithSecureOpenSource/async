@@ -17,12 +17,7 @@ static inline void action_1_perf(action_1 action)
     action.act(action.obj);
 }
 
-static inline void __no_action(void *obj)
-{
-    (void) (obj);
-}
-
-#define NULL_ACTION_1 ((action_1) { NULL, __no_action })
+extern action_1 NULL_ACTION_1;
 
 #ifdef __cplusplus
 }
