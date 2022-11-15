@@ -111,7 +111,8 @@ static inline void *bytestream_2_leftover_bytes(bytestream_2 stream)
 static inline bytestream_1 bytestream_2_as_bytestream_1(bytestream_2 stream)
 {
     struct bytestream_1_vt *vt = (struct bytestream_1_vt *) stream.vt;
-    return (bytestream_1) { stream.obj, vt };
+    bytestream_1 s1 = { stream.obj, vt };
+    return s1;
 }
 
 #ifdef __cplusplus

@@ -316,7 +316,7 @@ public:
     virtual ~ProxyVariant()
     {
         data_->action = NULL_ACTION_1;
-        async_execute(data_->async, (action_1) { data_, (act_1) destroy_data });
+        async_execute(data_->async, action_1 { data_, (act_1) destroy_data });
     }
 
     ProxyVariant(const ProxyVariant &) = delete;
