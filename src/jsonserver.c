@@ -40,14 +40,22 @@ struct jsonreq {
     action_1 callback;
 };
 
+typedef enum {
+    SERVER_OPEN,
+    SERVER_DOCKED,
+    SERVER_ZOMBIE,
+} server_state_t;
+
 struct jsonserver {
     async_t *async;
     uint64_t uid;
+    server_state_t state;
     tcp_server_t *tcp_server;
     size_t max_frame_size;
     list_t *connections;
     list_t *pending;
     action_1 callback;
+    int accept_errno;           /* if SERVER_DOCKED */
 };
 
 static jsonreq_t *create_jsonreq(conn_t *conn, json_thing_t *body)
@@ -204,12 +212,35 @@ static void open_connection(jsonserver_t *server, tcp_conn_t *tcp_conn)
     FSTRACE(ASYNC_JSONSERVER_CONN_CREATE, conn->uid, server->uid);
 }
 
+static const char *server_trace_state(server_state_t *state)
+{
+    switch (*state) {
+        case SERVER_OPEN:
+            return "SERVER_OPEN";
+        case SERVER_DOCKED:
+            return "SERVER_DOCKED";
+        case SERVER_ZOMBIE:
+            return "SERVER_ZOMBIE";
+        default:
+            return "?";
+    }
+}
+
+FSTRACE_DECL(ASYNC_JSONSERVER_SET_STATE, "UID=%64u OLD=%I NEW=%I");
+
+static void set_state(jsonserver_t *server, server_state_t state)
+{
+    FSTRACE(ASYNC_JSONSERVER_SET_STATE, server->uid, server_trace_state,
+            &server->state, server_trace_state, &state);
+    server->state = state;
+}
+
 FSTRACE_DECL(ASYNC_JSONSERVER_ACCEPT_FAIL, "UID=%64u ERRNO=%e");
 FSTRACE_DECL(ASYNC_JSONSERVER_PROBE_SPURIOUS, "UID=%64u");
 
 static void jsonserver_probe(jsonserver_t *server)
 {
-    if (!server->async)
+    if (server->state != SERVER_OPEN)
         return;
     tcp_conn_t *tcp_conn = tcp_accept(server->tcp_server, NULL, NULL);
     if (!tcp_conn) {
@@ -217,7 +248,9 @@ static void jsonserver_probe(jsonserver_t *server)
             FSTRACE(ASYNC_JSONSERVER_PROBE_SPURIOUS, server->uid);
             return;
         }
+        server->accept_errno = errno;
         FSTRACE(ASYNC_JSONSERVER_ACCEPT_FAIL, server->uid);
+        set_state(server, SERVER_DOCKED);
         return;
     }
     open_connection(server, tcp_conn);
@@ -233,12 +266,14 @@ jsonserver_t *open_jsonserver(async_t *async, tcp_server_t *tcp_server,
     jsonserver_t *server = fsalloc(sizeof *server);
     server->async = async;
     server->uid = fstrace_get_unique_id();
+    server->state = SERVER_OPEN;
     server->tcp_server = tcp_server;
     server->max_frame_size = max_frame_size;
     server->connections = make_list();
     server->pending = make_list();
     action_1 server_cb = { server, (act_1) jsonserver_probe };
     tcp_register_server_callback(tcp_server, server_cb);
+    async_execute(server->async, server_cb);
     FSTRACE(ASYNC_JSONSERVER_CREATE, server->uid);
     return server;
 }
@@ -247,6 +282,7 @@ FSTRACE_DECL(ASYNC_JSONSERVER_CLOSE, "UID=%64u");
 
 void jsonserver_close(jsonserver_t *server)
 {
+    assert(server->state != SERVER_ZOMBIE);
     FSTRACE(ASYNC_JSONSERVER_CLOSE, server->uid);
     list_foreach(server->pending, (void *) jsonreq_destroy, NULL);
     destroy_list(server->pending);
@@ -257,7 +293,7 @@ void jsonserver_close(jsonserver_t *server)
     destroy_list(server->connections);
     tcp_close_server(server->tcp_server);
     async_wound(server->async, server);
-    server->async = NULL;
+    set_state(server, SERVER_ZOMBIE);
 }
 
 FSTRACE_DECL(ASYNC_JSONSERVER_REGISTER, "UID=%64u OBJ=%p ACT=%p");
@@ -278,18 +314,29 @@ void jsonserver_unregister_callback(jsonserver_t *server)
 
 FSTRACE_DECL(ASYNC_JSONSERVER_RECEIVE_REQUEST_SPURIOUS, "UID=%64u");
 FSTRACE_DECL(ASYNC_JSONSERVER_RECEIVE_REQUEST, "UID=%64u CONN-ID=%64u REQ=%p");
+FSTRACE_DECL(ASYNC_JSONSERVER_RECEIVE_REQUEST_DOCKED, "UID=%64u ERRNO=%E");
 
 jsonreq_t *jsonserver_receive_request(jsonserver_t *server)
 {
+    assert(server->state != SERVER_ZOMBIE);
     jsonreq_t *request = (jsonreq_t *) list_pop_first(server->pending);
-    if (!request) {
+    if (request) {
+        FSTRACE(ASYNC_JSONSERVER_RECEIVE_REQUEST, server->uid,
+                request->conn->uid, request);
+        return request;
+    }
+    if (server->state != SERVER_DOCKED) {
         FSTRACE(ASYNC_JSONSERVER_RECEIVE_REQUEST_SPURIOUS, server->uid);
         errno = EAGAIN;
         return NULL;
     }
-    FSTRACE(ASYNC_JSONSERVER_RECEIVE_REQUEST, server->uid, request->conn->uid,
-            request);
-    return request;
+    FSTRACE(ASYNC_JSONSERVER_RECEIVE_REQUEST_DOCKED, server->uid,
+            server->accept_errno);
+    set_state(server, SERVER_OPEN);
+    async_execute(server->async,
+                  (action_1) { server, (act_1) jsonserver_probe });
+    errno = server->accept_errno;
+    return NULL;
 }
 
 json_thing_t *jsonreq_get_body(jsonreq_t *request)
