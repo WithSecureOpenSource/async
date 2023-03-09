@@ -54,10 +54,8 @@ TARGET_FLAGS = {
 def construct():
     ccflags = (
         ' -g -O2 -Wall -Wextra -Werror '
-        '-Wno-null-pointer-arithmetic '
         '-Wno-sign-compare '
-        '-Wno-unknown-warning-option '
-        '-Wno-unused-label '
+        '-Wno-maybe-uninitialized '
         '-Wno-unused-parameter '
     )
     prefix = ARGUMENTS.get('prefix', '/usr/local')
