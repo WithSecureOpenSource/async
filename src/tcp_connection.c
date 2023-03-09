@@ -471,51 +471,41 @@ static void replenish_outbuf(tcp_conn_t *conn)
     conn->outcount = count;
 }
 
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0
-#endif
-#ifndef CMSG_ALIGN
-#define CMSG_ALIGN(len) (CMSG_SPACE(len) - CMSG_SPACE(0))
-#endif
+FSTRACE_DECL(ASYNC_TCP_SEND_SINGLE_DATA_BYTE, "UID=%64u");
 
-FSTRACE_DECL(ASYNC_TCP_SEND_FAIL, "UID=%64u WANT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_TCP_SEND, "UID=%64u WANT=%z GOT=%z");
-FSTRACE_DECL(ASYNC_TCP_SEND_DUMP, "UID=%64u DATA=%A");
-FSTRACE_DECL(ASYNC_TCP_SENDMSG_ANCILLARY, "UID=%64u SIZE=%z");
-FSTRACE_DECL(ASYNC_TCP_SENDMSG_ANCILLARY_DUMP, "UID=%64u DATA=%A");
-FSTRACE_DECL(ASYNC_TCP_SENDMSG_FAIL, "UID=%64u WANT=%z ERRNO=%e");
-FSTRACE_DECL(ASYNC_TCP_SENDMSG, "UID=%64u WANT=%z GOT=%z");
-FSTRACE_DECL(ASYNC_TCP_SENDMSG_DUMP, "UID=%64u DATA=%A");
-
-static ssize_t transmit(tcp_conn_t *conn, size_t remaining)
+static size_t preview_ancillary_data(tcp_conn_t *conn, bool *single_byte,
+                                     unsigned *anc_count)
 {
-    uint8_t *point = conn->outbuf + conn->outcursor;
-    if (list_empty(conn->output.ancillary_data)) {
-        ssize_t count = send(conn->fd, point, remaining, MSG_NOSIGNAL);
-        if (count < 0)
-            FSTRACE(ASYNC_TCP_SEND_FAIL, conn->uid, remaining);
-        else {
-            FSTRACE(ASYNC_TCP_SEND, conn->uid, remaining, count);
-            FSTRACE(ASYNC_TCP_SEND_DUMP, conn->uid, point, count);
-        }
-        return count;
-    }
-    struct iovec iov = {
-        .iov_base = point,
-        .iov_len = remaining,
-    };
     size_t ancillary_size = 0;
     list_elem_t *ep;
-    for (ep = list_get_first(conn->output.ancillary_data); ep;
-         ep = list_next(ep)) {
+    for (ep = list_get_first(conn->output.ancillary_data), *anc_count = 0; ep;
+         ep = list_next(ep), ++*anc_count) {
         struct cmsghdr *cp = (struct cmsghdr *) list_elem_get_value(ep);
         if (cp->cmsg_level != CMSG_ASYNC_MAGIC_MARK ||
-            cp->cmsg_type != CMSG_ASYNC_MAGIC_MARK)
+            cp->cmsg_type != CMSG_ASYNC_MAGIC_MARK) {
+            if (ancillary_size > 0) {
+                /* See explanation [1] below. */
+                FSTRACE(ASYNC_TCP_SEND_SINGLE_DATA_BYTE, conn->uid);
+                *single_byte = true;
+                return ancillary_size;
+            }
             ancillary_size += CMSG_ALIGN(cp->cmsg_len);
+        }
     }
+    *single_byte = false;
+    return ancillary_size;
+}
+
+FSTRACE_DECL(ASYNC_TCP_SENDMSG_ANCILLARY, "UID=%64u SIZE=%z");
+FSTRACE_DECL(ASYNC_TCP_SENDMSG_ANCILLARY_DUMP, "UID=%64u DATA=%A");
+
+static uint8_t *flatten_ancillary_data(tcp_conn_t *conn, size_t ancillary_size,
+                                       unsigned anc_count)
+{
     uint8_t *ancillary = fsalloc(ancillary_size);
     uint8_t *ap = ancillary;
-    for (ep = list_get_first(conn->output.ancillary_data); ep;
+    list_elem_t *ep;
+    for (ep = list_get_first(conn->output.ancillary_data); ep && anc_count--;
          ep = list_next(ep)) {
         struct cmsghdr *cp = (struct cmsghdr *) list_elem_get_value(ep);
         if (cp->cmsg_level != CMSG_ASYNC_MAGIC_MARK ||
@@ -527,10 +517,76 @@ static ssize_t transmit(tcp_conn_t *conn, size_t remaining)
             ap += CMSG_ALIGN(anclen);
         }
     }
+    return ancillary;
+}
+
+static void pop_ancillary_data(tcp_conn_t *conn, unsigned anc_count)
+{
+    while (!list_empty(conn->output.ancillary_data) && anc_count--) {
+        struct cmsghdr *cp =
+            (struct cmsghdr *) list_pop_first(conn->output.ancillary_data);
+        if (cp->cmsg_level == CMSG_ASYNC_MAGIC_MARK &&
+            cp->cmsg_type == CMSG_ASYNC_MAGIC_MARK) {
+            action_1 action;
+            memcpy(&action, CMSG_DATA(cp), sizeof action);
+            async_execute(conn->async, action);
+        }
+        fsfree(cp);
+    }
+}
+
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
+#ifndef CMSG_ALIGN
+#define CMSG_ALIGN(len) (CMSG_SPACE(len) - CMSG_SPACE(0))
+#endif
+
+FSTRACE_DECL(ASYNC_TCP_SEND_FAIL, "UID=%64u WANT=%z ERRNO=%e");
+FSTRACE_DECL(ASYNC_TCP_SEND, "UID=%64u WANT=%z GOT=%z");
+FSTRACE_DECL(ASYNC_TCP_SEND_DUMP, "UID=%64u DATA=%A");
+FSTRACE_DECL(ASYNC_TCP_SENDMSG_FAIL, "UID=%64u WANT=%z ERRNO=%e");
+FSTRACE_DECL(ASYNC_TCP_SENDMSG, "UID=%64u WANT=%z GOT=%z");
+FSTRACE_DECL(ASYNC_TCP_SENDMSG_DUMP, "UID=%64u DATA=%A");
+
+// The ancillary semantics of tcp_connection don't align precisely
+// with those of sendmsg(2). In particular, the order of delivering
+// data and ancillary data is more unpredictable as data is pulled
+// rather than pushed.
+//
+// [1] In the current heuristics, whenever there is more than one
+// piece of ancillary data to be sent, only one ancillary data packet
+// is sent and a single byte of data (the mandatory minimum) is
+// shipped with it. There could be use cases where that leads to data
+// starvation, but those use cases should be exceedingly rare. (A
+// workaround: send at least one byte of data per ancillary data
+// item.)
+static ssize_t transmit(tcp_conn_t *conn, size_t remaining)
+{
+    assert(remaining > 0);
+    uint8_t *point = conn->outbuf + conn->outcursor;
+    if (list_empty(conn->output.ancillary_data)) {
+        ssize_t count = send(conn->fd, point, remaining, MSG_NOSIGNAL);
+        if (count < 0)
+            FSTRACE(ASYNC_TCP_SEND_FAIL, conn->uid, remaining);
+        else {
+            FSTRACE(ASYNC_TCP_SEND, conn->uid, remaining, count);
+            FSTRACE(ASYNC_TCP_SEND_DUMP, conn->uid, point, count);
+        }
+        return count;
+    }
+    bool single_byte;
+    unsigned anc_count;
+    size_t ancillary_size =
+        preview_ancillary_data(conn, &single_byte, &anc_count);
+    struct iovec iov = {
+        .iov_base = point,
+        .iov_len = single_byte ? 1 : remaining,
+    };
     struct msghdr message = {
         .msg_iov = &iov,
         .msg_iovlen = 1,
-        .msg_control = ancillary,
+        .msg_control = flatten_ancillary_data(conn, ancillary_size, anc_count),
         .msg_controllen = ancillary_size,
     };
     ssize_t count = sendmsg(conn->fd, &message, MSG_NOSIGNAL);
@@ -539,19 +595,9 @@ static ssize_t transmit(tcp_conn_t *conn, size_t remaining)
     else {
         FSTRACE(ASYNC_TCP_SENDMSG, conn->uid, remaining, count);
         FSTRACE(ASYNC_TCP_SENDMSG_DUMP, conn->uid, point, count);
-        while (!list_empty(conn->output.ancillary_data)) {
-            struct cmsghdr *cp =
-                (struct cmsghdr *) list_pop_first(conn->output.ancillary_data);
-            if (cp->cmsg_level == CMSG_ASYNC_MAGIC_MARK &&
-                cp->cmsg_type == CMSG_ASYNC_MAGIC_MARK) {
-                action_1 action;
-                memcpy(&action, CMSG_DATA(cp), sizeof action);
-                async_execute(conn->async, action);
-            }
-            fsfree(cp);
-        }
+        pop_ancillary_data(conn, anc_count);
     }
-    fsfree(ancillary);
+    fsfree(message.msg_control);
     return count;
 }
 
