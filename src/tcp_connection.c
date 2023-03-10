@@ -341,7 +341,7 @@ void tcp_shut_down(tcp_conn_t *conn, int how, int *perror)
 static bool ancillary_data_info_describes_file_descriptor(int level, int type,
                                                           size_t size)
 {
-    return level == SOL_SOCKET && type == SCM_RIGHTS && size < sizeof(int);
+    return level == SOL_SOCKET && type == SCM_RIGHTS && size >= sizeof(int);
 }
 
 static void close_fd(void *fd)
