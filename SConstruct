@@ -54,7 +54,9 @@ TARGET_FLAGS = {
 def construct():
     ccflags = (
         ' -g -O2 -Wall -Wextra -Werror '
+        '-Wno-null-pointer-arithmetic '
         '-Wno-sign-compare '
+        '-Wno-unknown-warning-option '
         '-Wno-maybe-uninitialized '
         '-Wno-unused-parameter '
     )
