@@ -20,12 +20,7 @@
 
 enum {
     OUTBUF_SIZE = 1024 * 10,
-};
-
-enum {
-    /* This value is used to mark pseudo-ancillary data for
-     * tcp_mark_ancillary_data(). */
-    CMSG_ASYNC_MAGIC_MARK = 0xFEFDFCFB,
+    CMSG_ASYNC_MAX_FD = 100, /* <= SCM_MAX_FD */
 };
 
 struct tcp_conn {
@@ -35,7 +30,7 @@ struct tcp_conn {
     struct {
         int state, error;
         uint64_t byte_count;
-        list_t *ancillary_data; /* of struct cmsghdr */
+        list_t *ancillary_list; /* of ancillary_data_t */
     } input, output;
     action_1 notify_input;
     void (*flush_socket)(tcp_conn_t *);
@@ -52,6 +47,21 @@ struct tcp_server {
     int fd;
     action_1 notify;
 };
+
+typedef enum {
+    ANCILLARY_RAW = 0,
+    ANCILLARY_FD = 1,
+    ANCILLARY_ACTION = 2,
+} ancillary_kind_t;
+
+typedef struct {
+    ancillary_kind_t kind;
+    union {
+        struct cmsghdr *raw;
+        int fd;
+        action_1 action;
+    };
+} ancillary_data_t;
 
 /*
  * The states. For input and output independently.
@@ -99,6 +109,37 @@ static size_t ancillary_data_info(struct cmsghdr *cp, int *level, int *type)
     return ancillary_data_size(cp);
 }
 
+ancillary_data_t *make_raw_ancillary(struct cmsghdr *raw)
+{
+    ancillary_data_t *data = fsalloc(sizeof *data);
+    data->kind = ANCILLARY_RAW;
+    data->raw = raw;
+    return data;
+}
+
+ancillary_data_t *make_fd_ancillary(int fd)
+{
+    ancillary_data_t *data = fsalloc(sizeof *data);
+    data->kind = ANCILLARY_FD;
+    data->fd = fd;
+    return data;
+}
+
+ancillary_data_t *make_action_ancillary(action_1 action)
+{
+    ancillary_data_t *data = fsalloc(sizeof *data);
+    data->kind = ANCILLARY_ACTION;
+    data->action = action;
+    return data;
+}
+
+static void destroy_ancillary_data(ancillary_data_t *data)
+{
+    if (data->kind == ANCILLARY_RAW)
+        fsfree(data->raw);
+    fsfree(data);
+}
+
 FSTRACE_DECL(ASYNC_TCP_RECEIVE_ANCILLARY, "UID=%64u SIZE=%z");
 FSTRACE_DECL(ASYNC_TCP_RECEIVE_ANCILLARY_FD, "UID=%64u FD=%d");
 FSTRACE_DECL(ASYNC_TCP_RECEIVE_ANCILLARY_DUMP, "UID=%64u DATA=%A");
@@ -107,30 +148,24 @@ static void receive_ancillary_data(tcp_conn_t *conn, struct cmsghdr *cp)
 {
     size_t anclen = cp->cmsg_len;
     FSTRACE(ASYNC_TCP_RECEIVE_ANCILLARY, conn->uid, anclen);
-
     int level;
     int type;
     size_t size = ancillary_data_info(cp, &level, &type);
     if (level == SOL_SOCKET && type == SCM_RIGHTS) {
         int *fds = (int *) CMSG_DATA(cp);
-
         int remaining_fds = size / sizeof(int);
         while (remaining_fds--) {
             int fd = *fds++;
-            struct cmsghdr *fd_cp = fsalloc(CMSG_SPACE(sizeof fd));
-            fd_cp->cmsg_level = level;
-            fd_cp->cmsg_type = type;
-            fd_cp->cmsg_len = CMSG_LEN(sizeof fd);
-            memcpy(CMSG_DATA(fd_cp), &fd, sizeof fd);
-            list_append(conn->input.ancillary_data, fd_cp);
+            ancillary_data_t *data = make_fd_ancillary(fd);
+            list_append(conn->input.ancillary_list, data);
             FSTRACE(ASYNC_TCP_RECEIVE_ANCILLARY_FD, conn->uid, fd);
         }
         return;
     }
-
     struct cmsghdr *anc = fsalloc(anclen);
     memcpy(anc, cp, anclen);
-    list_append(conn->input.ancillary_data, anc);
+    ancillary_data_t *data = make_raw_ancillary(anc);
+    list_append(conn->input.ancillary_list, data);
     FSTRACE(ASYNC_TCP_RECEIVE_ANCILLARY_DUMP, conn->uid, anc, anclen);
 }
 
@@ -306,15 +341,7 @@ void tcp_shut_down(tcp_conn_t *conn, int how, int *perror)
 static bool ancillary_data_info_describes_file_descriptor(int level, int type,
                                                           size_t size)
 {
-    return level == SOL_SOCKET && type == SCM_RIGHTS && size == sizeof(int);
-}
-
-static bool ancillary_data_is_file_descriptor(struct cmsghdr *cp)
-{
-    int level;
-    int type;
-    size_t size = ancillary_data_info(cp, &level, &type);
-    return ancillary_data_info_describes_file_descriptor(level, type, size);
+    return level == SOL_SOCKET && type == SCM_RIGHTS && size < sizeof(int);
 }
 
 static void close_fd(void *fd)
@@ -328,26 +355,22 @@ void tcp_close(tcp_conn_t *conn)
 {
     FSTRACE(ASYNC_TCP_CLOSE, conn->uid);
     assert(!conn->connection_closed);
-    while (!list_empty(conn->input.ancillary_data)) {
-        struct cmsghdr *cp =
-            (struct cmsghdr *) list_pop_first(conn->input.ancillary_data);
-        if (ancillary_data_is_file_descriptor(cp))
-            close_fd(CMSG_DATA(cp));
-        fsfree(cp);
+    while (!list_empty(conn->input.ancillary_list)) {
+        ancillary_data_t *data =
+            (ancillary_data_t *) list_pop_first(conn->input.ancillary_list);
+        if (data->kind == ANCILLARY_FD)
+            close(data->fd);
+        destroy_ancillary_data(data);
     }
-    destroy_list(conn->input.ancillary_data);
-    while (!list_empty(conn->output.ancillary_data)) {
-        struct cmsghdr *cp =
-            (struct cmsghdr *) list_pop_first(conn->output.ancillary_data);
-        if (cp->cmsg_level == CMSG_ASYNC_MAGIC_MARK &&
-            cp->cmsg_type == CMSG_ASYNC_MAGIC_MARK) {
-            action_1 action;
-            memcpy(&action, CMSG_DATA(cp), sizeof action);
-            async_execute(conn->async, action);
-        }
-        fsfree(cp);
+    destroy_list(conn->input.ancillary_list);
+    while (!list_empty(conn->output.ancillary_list)) {
+        ancillary_data_t *data =
+            (ancillary_data_t *) list_pop_first(conn->output.ancillary_list);
+        if (data->kind == ANCILLARY_ACTION)
+            async_execute(conn->async, data->action);
+        destroy_ancillary_data(data);
     }
-    destroy_list(conn->output.ancillary_data);
+    destroy_list(conn->output.ancillary_list);
     int dummy;
     tcp_shut_down(conn, SHUT_RDWR, &dummy);
     async_unregister(conn->async, conn->fd);
@@ -471,26 +494,44 @@ static void replenish_outbuf(tcp_conn_t *conn)
     conn->outcount = count;
 }
 
-FSTRACE_DECL(ASYNC_TCP_SEND_SINGLE_DATA_BYTE, "UID=%64u");
+FSTRACE_DECL(ASYNC_TCP_SEND_SINGLE_DATA_BYTE,
+             "UID=%64u ANC-COUNT=%u FD-COUNT=%u ANC-SIZE=%z");
 
 static size_t preview_ancillary_data(tcp_conn_t *conn, bool *single_byte,
                                      unsigned *anc_count)
 {
     size_t ancillary_size = 0;
+    bool raw = false;           /* ANCILLARY_RAW detected */
+    unsigned fd_count = 0;      /* >0 when ANCILLARY_FD detected */
     list_elem_t *ep;
-    for (ep = list_get_first(conn->output.ancillary_data), *anc_count = 0; ep;
+    for (ep = list_get_first(conn->output.ancillary_list), *anc_count = 0; ep;
          ep = list_next(ep), ++*anc_count) {
-        struct cmsghdr *cp = (struct cmsghdr *) list_elem_get_value(ep);
-        if (cp->cmsg_level != CMSG_ASYNC_MAGIC_MARK ||
-            cp->cmsg_type != CMSG_ASYNC_MAGIC_MARK) {
-            if (ancillary_size > 0) {
-                /* See explanation [1] below. */
-                FSTRACE(ASYNC_TCP_SEND_SINGLE_DATA_BYTE, conn->uid);
-                *single_byte = true;
-                return ancillary_size;
-            }
-            ancillary_size += CMSG_ALIGN(cp->cmsg_len);
+        ancillary_data_t *data = (ancillary_data_t *) list_elem_get_value(ep);
+        switch (data->kind) {
+            case ANCILLARY_RAW:
+                if (raw || fd_count > 0) /* only one ANCILLARY_RAW at a time */
+                    break;
+                raw = true;
+                ancillary_size = CMSG_ALIGN(data->raw->cmsg_len);
+                continue;
+            case ANCILLARY_FD:
+                if (raw || fd_count >= CMSG_ASYNC_MAX_FD)
+                    break;
+                fd_count++;
+                ancillary_size = CMSG_ALIGN(CMSG_LEN(fd_count * sizeof(int)));
+                continue;
+            case ANCILLARY_ACTION:
+                continue;
+            default:
+                abort();
         }
+        /* We can't send all outstanding ancillary data at once; only
+         * consume a single data byte so we can continue sending the
+         * remaining ancillary data. */
+        FSTRACE(ASYNC_TCP_SEND_SINGLE_DATA_BYTE, conn->uid, *anc_count,
+                fd_count, ancillary_size);
+        *single_byte = true;
+        return ancillary_size;
     }
     *single_byte = false;
     return ancillary_size;
@@ -499,22 +540,59 @@ static size_t preview_ancillary_data(tcp_conn_t *conn, bool *single_byte,
 FSTRACE_DECL(ASYNC_TCP_SENDMSG_ANCILLARY, "UID=%64u SIZE=%z");
 FSTRACE_DECL(ASYNC_TCP_SENDMSG_ANCILLARY_DUMP, "UID=%64u DATA=%A");
 
+static void report_ancillary(tcp_conn_t *conn, uint8_t *ap, size_t anclen)
+{
+    FSTRACE(ASYNC_TCP_SENDMSG_ANCILLARY, conn->uid, anclen);
+    FSTRACE(ASYNC_TCP_SENDMSG_ANCILLARY_DUMP, conn->uid, ap, anclen);
+}
+
 static uint8_t *flatten_ancillary_data(tcp_conn_t *conn, size_t ancillary_size,
                                        unsigned anc_count)
 {
     uint8_t *ancillary = fsalloc(ancillary_size);
     uint8_t *ap = ancillary;
+    struct cmsghdr *fd_cp = NULL;
+    unsigned fd_count;          /* valid if fd_cp != NULL */
     list_elem_t *ep;
-    for (ep = list_get_first(conn->output.ancillary_data); ep && anc_count--;
+    for (ep = list_get_first(conn->output.ancillary_list); ep && anc_count--;
          ep = list_next(ep)) {
-        struct cmsghdr *cp = (struct cmsghdr *) list_elem_get_value(ep);
-        if (cp->cmsg_level != CMSG_ASYNC_MAGIC_MARK ||
-            cp->cmsg_type != CMSG_ASYNC_MAGIC_MARK) {
-            size_t anclen = cp->cmsg_len;
-            memcpy(ap, cp, anclen);
-            FSTRACE(ASYNC_TCP_SENDMSG_ANCILLARY, conn->uid, anclen);
-            FSTRACE(ASYNC_TCP_SENDMSG_ANCILLARY_DUMP, conn->uid, ap, anclen);
-            ap += CMSG_ALIGN(anclen);
+        ancillary_data_t *data = (ancillary_data_t *) list_elem_get_value(ep);
+        switch (data->kind) {
+            case ANCILLARY_RAW:
+                if (fd_cp) {
+                    /* preview_ancillary_data doesn't allow this to
+                     * happen, but the logic is forward-looking */
+                    size_t anclen = CMSG_LEN(fd_count * sizeof(int));
+                    fd_cp->cmsg_len = anclen;
+                    report_ancillary(conn, ap, anclen);
+                    ap += CMSG_ALIGN(anclen);
+                }
+                fd_cp = NULL;
+                struct cmsghdr *cp = data->raw;
+                size_t anclen = cp->cmsg_len;
+                memcpy(ap, cp, anclen);
+                report_ancillary(conn, ap, anclen);
+                ap += CMSG_ALIGN(anclen);
+                break;
+            case ANCILLARY_FD:
+                if (!fd_cp) {
+                    fd_cp = (struct cmsghdr *) ap;
+                    fd_cp->cmsg_level = SOL_SOCKET;
+                    fd_cp->cmsg_type = SCM_RIGHTS;
+                    fd_count = 0;
+                }
+                memcpy(CMSG_DATA(fd_cp) + sizeof data->fd * fd_count++,
+                       &data->fd, sizeof data->fd);
+                break;
+            case ANCILLARY_ACTION:
+                break;
+            default:
+                abort();
+        }
+        if (fd_cp) {
+            size_t anclen = CMSG_LEN(fd_count * sizeof(int));
+            fd_cp->cmsg_len = anclen;
+            report_ancillary(conn, ap, anclen);
         }
     }
     return ancillary;
@@ -522,16 +600,12 @@ static uint8_t *flatten_ancillary_data(tcp_conn_t *conn, size_t ancillary_size,
 
 static void pop_ancillary_data(tcp_conn_t *conn, unsigned anc_count)
 {
-    while (!list_empty(conn->output.ancillary_data) && anc_count--) {
-        struct cmsghdr *cp =
-            (struct cmsghdr *) list_pop_first(conn->output.ancillary_data);
-        if (cp->cmsg_level == CMSG_ASYNC_MAGIC_MARK &&
-            cp->cmsg_type == CMSG_ASYNC_MAGIC_MARK) {
-            action_1 action;
-            memcpy(&action, CMSG_DATA(cp), sizeof action);
-            async_execute(conn->async, action);
-        }
-        fsfree(cp);
+    while (!list_empty(conn->output.ancillary_list) && anc_count--) {
+        ancillary_data_t *data = 
+            (ancillary_data_t *) list_pop_first(conn->output.ancillary_list);
+        if (data->kind == ANCILLARY_ACTION)
+            async_execute(conn->async, data->action);
+        destroy_ancillary_data(data);
     }
 }
 
@@ -554,18 +628,17 @@ FSTRACE_DECL(ASYNC_TCP_SENDMSG_DUMP, "UID=%64u DATA=%A");
 // data and ancillary data is more unpredictable as data is pulled
 // rather than pushed.
 //
-// [1] In the current heuristics, whenever there is more than one
-// piece of ancillary data to be sent, only one ancillary data packet
-// is sent and a single byte of data (the mandatory minimum) is
-// shipped with it. There could be use cases where that leads to data
-// starvation, but those use cases should be exceedingly rare. (A
-// workaround: send at least one byte of data per ancillary data
-// item.)
+// In the current heuristics, whenever there is more than one piece of
+// ancillary data to be sent, only one ancillary data packet is sent
+// and a single byte of data (the mandatory minimum) is shipped with
+// it. There could be use cases where that leads to data starvation,
+// but those use cases should be exceedingly rare. (A workaround: send
+// at least one byte of data per ancillary data item.)
 static ssize_t transmit(tcp_conn_t *conn, size_t remaining)
 {
     assert(remaining > 0);
     uint8_t *point = conn->outbuf + conn->outcursor;
-    if (list_empty(conn->output.ancillary_data)) {
+    if (list_empty(conn->output.ancillary_list)) {
         ssize_t count = send(conn->fd, point, remaining, MSG_NOSIGNAL);
         if (count < 0)
             FSTRACE(ASYNC_TCP_SEND_FAIL, conn->uid, remaining);
@@ -960,13 +1033,18 @@ FSTRACE_DECL(ASYNC_TCP_PEEK_ANCILLARY, "UID=%64u LEVEL=%d TYPE=%d SIZE=%z");
 
 ssize_t tcp_peek_ancillary_data(tcp_conn_t *conn, int *level, int *type)
 {
-    list_elem_t *ep = list_get_first(conn->input.ancillary_data);
+    list_elem_t *ep = list_get_first(conn->input.ancillary_list);
     if (!ep) {
         errno = EAGAIN;
         return -1;
     }
-    struct cmsghdr *cp = (struct cmsghdr *) list_elem_get_value(ep);
-    size_t size = ancillary_data_info(cp, level, type);
+    ancillary_data_t *data = (ancillary_data_t *) list_elem_get_value(ep);
+    if (data->kind != ANCILLARY_RAW) {
+        /* Calling tcp_recv_fd() reorganizes ancillary_list as a side effect. */
+        errno = EINVAL;
+        return -1;
+    }
+    size_t size = ancillary_data_info(data->raw, level, type);
     FSTRACE(ASYNC_TCP_PEEK_ANCILLARY, conn->uid, *level, *type, size);
     return size;
 }
@@ -977,20 +1055,27 @@ FSTRACE_DECL(ASYNC_TCP_RECV_ANCILLARY_DUMP, "UID=%64u DATA=%A");
 
 ssize_t tcp_recv_ancillary_data(tcp_conn_t *conn, void *buf, size_t size)
 {
-    struct cmsghdr *cp =
-        (struct cmsghdr *) list_pop_first(conn->input.ancillary_data);
-    if (!cp) {
+    list_elem_t *ep = list_get_first(conn->input.ancillary_list);
+    if (!ep) {
         errno = EAGAIN;
         FSTRACE(ASYNC_TCP_RECV_ANCILLARY_FAIL, conn->uid);
         return -1;
     }
-    size_t available = ancillary_data_size(cp);
+    ancillary_data_t *data = (ancillary_data_t *) list_elem_get_value(ep);
+    if (data->kind != ANCILLARY_RAW) {
+        /* Calling tcp_recv_fd() reorganizes ancillary_list as a side effect. */
+        errno = EINVAL;
+        FSTRACE(ASYNC_TCP_RECV_ANCILLARY_FAIL, conn->uid);
+        return -1;
+    }
+    list_pop_first(conn->input.ancillary_list);
+    size_t available = ancillary_data_size(data->raw);
     if (available > size)
         available = size;
-    memcpy(buf, CMSG_DATA(cp), available);
+    memcpy(buf, CMSG_DATA(data->raw), available);
     FSTRACE(ASYNC_TCP_RECV_ANCILLARY, conn->uid, available);
     FSTRACE(ASYNC_TCP_RECV_ANCILLARY_DUMP, conn->uid, buf, available);
-    fsfree(cp);
+    destroy_ancillary_data(data);
     return available;
 }
 
@@ -999,20 +1084,36 @@ FSTRACE_DECL(ASYNC_TCP_RECV_FD, "UID=%64u FD=%d");
 
 int tcp_recv_fd(tcp_conn_t *conn)
 {
-    int level, type;
-    ssize_t size = tcp_peek_ancillary_data(conn, &level, &type);
-    if (size < 0) {
+    list_elem_t *ep = list_get_first(conn->input.ancillary_list);
+    if (!ep) {
+        errno = EAGAIN;
         FSTRACE(ASYNC_TCP_RECV_FD_FAIL, conn->uid);
         return -1;
     }
+    ancillary_data_t *data = (ancillary_data_t *) list_elem_get_value(ep);
+    if (data->kind == ANCILLARY_FD) {
+        int fd = data->fd;
+        list_pop_first(conn->input.ancillary_list);
+        destroy_ancillary_data(data);
+        FSTRACE(ASYNC_TCP_RECV_FD, conn->uid, fd);
+        return fd;
+    }
+    assert(data->kind == ANCILLARY_RAW);
+    int level, type;
+    size_t size = ancillary_data_info(data->raw, &level, &type);
     if (!ancillary_data_info_describes_file_descriptor(level, type, size)) {
         errno = EPROTO;
         FSTRACE(ASYNC_TCP_RECV_FD_FAIL, conn->uid);
         return -1;
     }
+    list_pop_first(conn->input.ancillary_list);
     int fd;
-    ssize_t count = tcp_recv_ancillary_data(conn, &fd, sizeof fd);
-    assert(count == sizeof fd);
+    for (unsigned i = size / sizeof fd - 1; i > 0; i--) {
+        memcpy(&fd, CMSG_DATA(data->raw) + sizeof fd * i, sizeof fd);
+        list_prepend(conn->input.ancillary_list, make_fd_ancillary(fd));
+    }
+    memcpy(&fd, CMSG_DATA(data->raw), sizeof fd);
+    destroy_ancillary_data(data);
     FSTRACE(ASYNC_TCP_RECV_FD, conn->uid, fd);
     return fd;
 }
@@ -1023,28 +1124,27 @@ FSTRACE_DECL(ASYNC_TCP_PEEK_RECEIVED_FDS_FD, "UID=%64u FD=%d");
 list_t *tcp_peek_received_fds(tcp_conn_t *conn)
 {
     FSTRACE(ASYNC_TCP_PEEK_RECEIVED_FDS, conn->uid);
-
     list_t *fds = make_list();
-
-    for (list_elem_t *ep = list_get_first(conn->input.ancillary_data);
+    for (list_elem_t *ep = list_get_first(conn->input.ancillary_list);
          ep != NULL; ep = list_next(ep)) {
-
-        struct cmsghdr *cp = (struct cmsghdr *) list_elem_get_value(ep);
-        int level, type;
-        size_t size = ancillary_data_info(cp, &level, &type);
-
-        if (!ancillary_data_info_describes_file_descriptor(level, type, size)) {
+        ancillary_data_t *data = (ancillary_data_t *) list_elem_get_value(ep);
+        if (data->kind == ANCILLARY_FD) {
+            list_append(fds, as_integer(data->fd));
             continue;
         }
-
+        assert(data->kind == ANCILLARY_RAW);
+        int level, type;
+        size_t size = ancillary_data_info(data->raw, &level, &type);
+        if (!ancillary_data_info_describes_file_descriptor(level, type, size))
+            continue;
         int fd;
-        assert(size == sizeof fd);
-        memcpy(&fd, CMSG_DATA(cp), size);
-
-        FSTRACE(ASYNC_TCP_PEEK_RECEIVED_FDS_FD, conn->uid, fd);
-        list_append(fds, as_integer(fd));
+        unsigned fd_count = size / sizeof fd;
+        for (unsigned i = 0; i < fd_count; i++) {
+            memcpy(&fd, CMSG_DATA(data->raw) + i * sizeof fd, sizeof fd);
+            FSTRACE(ASYNC_TCP_PEEK_RECEIVED_FDS_FD, conn->uid, fd);
+            list_append(fds, as_integer(fd));
+        }
     }
-
     return fds;
 }
 
@@ -1061,20 +1161,15 @@ ssize_t tcp_send_ancillary_data(tcp_conn_t *conn, int level, int type,
     cp->cmsg_type = type;
     cp->cmsg_len = CMSG_LEN(size);
     memcpy(CMSG_DATA(cp), buf, size);
-    list_append(conn->output.ancillary_data, cp);
+    list_append(conn->output.ancillary_list, make_raw_ancillary(cp));
     return size;
 }
 
-FSTRACE_DECL(ASYNC_TCP_SEND_FD_FAIL, "UID=%64u FD=%d ERRNO=%e");
 FSTRACE_DECL(ASYNC_TCP_SEND_FD, "UID=%64u FD=%d");
 
 int tcp_send_fd(tcp_conn_t *conn, int fd, bool close_after_sending)
 {
-    if (tcp_send_ancillary_data(conn, SOL_SOCKET, SCM_RIGHTS, &fd, sizeof fd) <
-        0) {
-        FSTRACE(ASYNC_TCP_SEND_FD_FAIL, conn->uid, fd);
-        return -1;
-    }
+    list_append(conn->output.ancillary_list, make_fd_ancillary(fd));
     if (close_after_sending) {
         action_1 closer = { (void *) (intptr_t) fd, close_fd };
         tcp_mark_ancillary_data(conn, closer);
@@ -1088,9 +1183,7 @@ FSTRACE_DECL(ASYNC_TCP_MARK_ANCILLARY, "UID=%64u OBJ=%p ACT=%p");
 void tcp_mark_ancillary_data(tcp_conn_t *conn, action_1 action)
 {
     FSTRACE(ASYNC_TCP_MARK_ANCILLARY, conn->uid, action.obj, action.act);
-    (void) tcp_send_ancillary_data(conn, CMSG_ASYNC_MAGIC_MARK,
-                                   CMSG_ASYNC_MAGIC_MARK, &action,
-                                   sizeof action);
+    list_append(conn->output.ancillary_list, make_action_ancillary(action));
 }
 
 FSTRACE_DECL(ASYNC_TCP_ADOPT_CREATE, "UID=%64u PTR=%p");
@@ -1106,8 +1199,8 @@ static tcp_conn_t *adopt_connection(async_t *async, uint64_t uid, int connfd)
     conn->outcursor = conn->outcount = 0;
     conn->connection_closed = conn->input_stream_closed = false;
     conn->input.error = conn->output.error = 0;
-    conn->input.ancillary_data = make_list();
-    conn->output.ancillary_data = make_list();
+    conn->input.ancillary_list = make_list();
+    conn->output.ancillary_list = make_list();
     tcp_unregister_callback(conn);
     conn->fd = connfd;
 #ifdef SO_NOSIGPIPE
