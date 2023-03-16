@@ -57,7 +57,7 @@ def construct():
         '-Wno-null-pointer-arithmetic '
         '-Wno-sign-compare '
         '-Wno-unknown-warning-option '
-        '-Wno-unused-label '
+        '-Wno-maybe-uninitialized '
         '-Wno-unused-parameter '
     )
     prefix = ARGUMENTS.get('prefix', '/usr/local')
