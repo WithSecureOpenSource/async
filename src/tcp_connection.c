@@ -141,7 +141,6 @@ static void destroy_ancillary_data(ancillary_data_t *data)
 }
 
 FSTRACE_DECL(ASYNC_TCP_RECEIVE_ANCILLARY, "UID=%64u SIZE=%z");
-FSTRACE_DECL(ASYNC_TCP_RECEIVE_ANCILLARY_FD, "UID=%64u FD=%d");
 FSTRACE_DECL(ASYNC_TCP_RECEIVE_ANCILLARY_DUMP, "UID=%64u DATA=%A");
 
 static void receive_ancillary_data(tcp_conn_t *conn, struct cmsghdr *cp)
