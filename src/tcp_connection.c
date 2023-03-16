@@ -141,27 +141,12 @@ static void destroy_ancillary_data(ancillary_data_t *data)
 }
 
 FSTRACE_DECL(ASYNC_TCP_RECEIVE_ANCILLARY, "UID=%64u SIZE=%z");
-FSTRACE_DECL(ASYNC_TCP_RECEIVE_ANCILLARY_FD, "UID=%64u FD=%d");
 FSTRACE_DECL(ASYNC_TCP_RECEIVE_ANCILLARY_DUMP, "UID=%64u DATA=%A");
 
 static void receive_ancillary_data(tcp_conn_t *conn, struct cmsghdr *cp)
 {
     size_t anclen = cp->cmsg_len;
     FSTRACE(ASYNC_TCP_RECEIVE_ANCILLARY, conn->uid, anclen);
-    int level;
-    int type;
-    size_t size = ancillary_data_info(cp, &level, &type);
-    if (level == SOL_SOCKET && type == SCM_RIGHTS) {
-        int *fds = (int *) CMSG_DATA(cp);
-        int remaining_fds = size / sizeof(int);
-        while (remaining_fds--) {
-            int fd = *fds++;
-            ancillary_data_t *data = make_fd_ancillary(fd);
-            list_append(conn->input.ancillary_list, data);
-            FSTRACE(ASYNC_TCP_RECEIVE_ANCILLARY_FD, conn->uid, fd);
-        }
-        return;
-    }
     struct cmsghdr *anc = fsalloc(anclen);
     memcpy(anc, cp, anclen);
     ancillary_data_t *data = make_raw_ancillary(anc);

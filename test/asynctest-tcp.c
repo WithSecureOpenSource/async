@@ -232,7 +232,7 @@ static void tcp_probe_down_world(TCP_CONTEXT *context)
     int level = 999, type = 999, fd = 999;
     count = tcp_peek_ancillary_data(context->conn, &level, &type);
     if (count < 0) {
-        tlog("No ancillary data received");
+        tlog("No ancillary data received (errno %d)", errno);
         async_quit_loop(context->async);
         return;
     }
@@ -246,8 +246,8 @@ static void tcp_probe_down_world(TCP_CONTEXT *context)
         async_quit_loop(context->async);
         return;
     }
-    count = tcp_recv_ancillary_data(context->conn, &fd, sizeof fd);
-    if (count != sizeof fd) {
+    fd = tcp_recv_fd(context->conn);
+    if (fd < 0) {
         tlog("Bad ancillary data size received");
         async_quit_loop(context->async);
         return;
