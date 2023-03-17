@@ -479,6 +479,10 @@ static void replenish_outbuf(tcp_conn_t *conn)
     conn->outcount = count;
 }
 
+#ifndef CMSG_ALIGN
+#define CMSG_ALIGN(len) (CMSG_SPACE(len) - CMSG_SPACE(0))
+#endif
+
 FSTRACE_DECL(ASYNC_TCP_SEND_SINGLE_DATA_BYTE,
              "UID=%64u ANC-COUNT=%u FD-COUNT=%u ANC-SIZE=%z");
 
@@ -596,9 +600,6 @@ static void pop_ancillary_data(tcp_conn_t *conn, unsigned anc_count)
 
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
-#endif
-#ifndef CMSG_ALIGN
-#define CMSG_ALIGN(len) (CMSG_SPACE(len) - CMSG_SPACE(0))
 #endif
 
 FSTRACE_DECL(ASYNC_TCP_SEND_FAIL, "UID=%64u WANT=%z ERRNO=%e");
