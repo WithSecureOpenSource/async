@@ -107,7 +107,7 @@ async_t *make_async(void)
     async->immediate = make_list();
     async->timers = make_priority_queue(timer_cmp, timer_reloc);
     async->registrations = make_avl_tree(intptr_cmp);
-    async->wakeup_fd = -1;
+    async->wakeup_fd[0] = async->wakeup_fd[1] = -1;
     async->wounded_objects = make_list();
 #ifdef __MACH__
     host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &async->mach_clock);
@@ -144,6 +144,11 @@ FSTRACE_DECL(ASYNC_DESTROY, "UID=%64u");
 void destroy_async(async_t *async)
 {
     FSTRACE(ASYNC_DESTROY, async->uid);
+    if (async->wakeup_fd[0] >= 0) {
+        async_unregister(async, async->wakeup_fd[0]);
+        (void) close(async->wakeup_fd[0]);
+        (void) close(async->wakeup_fd[1]);
+    }
     async_timer_t *timer;
     while ((timer = earliest_timer(async)) != NULL)
         async_timer_cancel(async, timer);
@@ -190,7 +195,7 @@ FSTRACE_DECL(ASYNC_WAKE_UP, "UID=%64u");
 static void wake_up(async_t *async)
 {
     FSTRACE(ASYNC_WAKE_UP, async->uid);
-    if (async->wakeup_fd >= 0 && write(async->wakeup_fd, wake_up, 1) < 0)
+    if (async->wakeup_fd[1] >= 0 && write(async->wakeup_fd[1], wake_up, 1) < 0)
         assert(errno == EAGAIN);
 }
 
@@ -445,6 +450,32 @@ static void emit_timer_backtrace(async_timer_t *timer)
     FSTRACE(ASYNC_TIMER_BT, timer->seqno, buf);
 }
 
+FSTRACE_DECL(ASYNC_SET_UP_WAKEUP_FD,
+             "UID=%64u WAKEUP-RDFD=%d WAKEUP-WRFD=%d");
+FSTRACE_DECL(ASYNC_SET_UP_WAKEUP_FD_FAIL, "UID=%64u ERRNO=%e");
+
+static bool set_up_wakeup_fd(async_t *async)
+{
+    if (async->wakeup_fd[0] >= 0)
+        return true;
+    if (!unixkit_pipe(async->wakeup_fd)) {
+        FSTRACE(ASYNC_SET_UP_WAKEUP_FD_FAIL, async->uid);
+        return false;
+    }
+    FSTRACE(ASYNC_SET_UP_WAKEUP_FD, async->uid,
+            async->wakeup_fd[0], async->wakeup_fd[1]);
+    async_register(async, async->wakeup_fd[0], NULL_ACTION_1);
+    nonblock(async->wakeup_fd[1]);
+    return true;
+}
+
+static void drain(int fd)
+{
+    uint8_t buffer[1024];
+    while (read(fd, buffer, sizeof buffer) > 0)
+        ;
+}
+
 FSTRACE_DECL(ASYNC_POLL_NO_TIMERS, "UID=%64u");
 FSTRACE_DECL(ASYNC_POLL_TIMEOUT, "UID=%64u OBJ=%p ACT=%p");
 FSTRACE_DECL(ASYNC_POLL_NEXT_TIMER, "UID=%64u EXPIRES=%64u");
@@ -454,6 +485,8 @@ FSTRACE_DECL(ASYNC_POLL_CALL_BACK, "UID=%64u EVENT=%64u");
 
 int async_poll(async_t *async, uint64_t *pnext_timeout)
 {
+    if (!set_up_wakeup_fd(async))
+        return -1;
     async_timer_t *timer = earliest_timer(async);
     if (timer == NULL) {
         *pnext_timeout = (uint64_t) -1;
@@ -502,6 +535,7 @@ int async_poll(async_t *async, uint64_t *pnext_timeout)
 #endif
     FSTRACE(ASYNC_POLL_CALL_BACK, async->uid, event->uid);
     async_event_trigger(event);
+    drain(async->wakeup_fd[0]);
     *pnext_timeout = 0;
     return 0;
 }
@@ -613,7 +647,6 @@ int async_loop(async_t *async)
     enum {
         MAX_IO_BURST = 20,
     };
-    async->wakeup_fd = -1;
     async->quit = false;
     for (;;) {
         int64_t ns = take_immediate_action(async);
@@ -649,36 +682,15 @@ int async_loop(async_t *async)
     }
 }
 
-static void drain(int fd)
-{
-    uint8_t buffer[1024];
-    while (read(fd, buffer, sizeof buffer) > 0)
-        ;
-}
+FSTRACE_DECL(ASYNC_LOOP_PROTECTED, "UID=%64u");
 
-FSTRACE_DECL(ASYNC_LOOP_PROTECTED_PIPE_FAIL, "UID=%64u ERRNO=%e");
-FSTRACE_DECL(ASYNC_LOOP_PROTECTED, "UID=%64u WAKEUP-RDFD=%d WAKEUP-WRFD=%d");
-
-static bool prepare_protected_loop(async_t *async, int pipefds[2])
+static bool prepare_protected_loop(async_t *async)
 {
-    if (!unixkit_pipe(pipefds)) {
-        FSTRACE(ASYNC_LOOP_PROTECTED_PIPE_FAIL, async->uid);
+    FSTRACE(ASYNC_LOOP_PROTECTED, async->uid);
+    if (!set_up_wakeup_fd(async))
         return false;
-    }
-    FSTRACE(ASYNC_LOOP_PROTECTED, async->uid, pipefds[0], pipefds[1]);
-    async_register(async, pipefds[0], NULL_ACTION_1);
-    nonblock(pipefds[1]);
-    async->wakeup_fd = pipefds[1];
     async->quit = false;
     return true;
-}
-
-static void finish_protected_loop(async_t *async, int pipefds[2])
-{
-    async_unregister(async, pipefds[0]);
-    close(pipefds[0]);
-    close(pipefds[1]);
-    async->wakeup_fd = -1;
 }
 
 FSTRACE_DECL(ASYNC_LOOP_PROTECTED_WAIT, "UID=%64u DELAY-NS=%64u");
@@ -692,14 +704,12 @@ int async_loop_protected(async_t *async, void (*lock)(void *),
     enum {
         MAX_IO_BURST = 20,
     };
-    int pipefds[2];
-    if (!prepare_protected_loop(async, pipefds))
+    if (!prepare_protected_loop(async))
         return -1;
     for (;;) {
-        drain(pipefds[0]);
+        drain(async->wakeup_fd[0]);
         int64_t ns = take_immediate_action(async);
         if (async->quit) {
-            finish_protected_loop(async, pipefds);
             FSTRACE(ASYNC_LOOP_PROTECTED_QUIT, async->uid);
             return 0;
         }
@@ -719,7 +729,6 @@ int async_loop_protected(async_t *async, void (*lock)(void *),
         int err = errno;
         lock(lock_data);
         if (count < 0) {
-            finish_protected_loop(async, pipefds);
             errno = err;
             FSTRACE(ASYNC_LOOP_PROTECTED_FAIL, async->uid);
             return -1;
