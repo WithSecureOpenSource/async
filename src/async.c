@@ -3,8 +3,17 @@
 #ifdef __linux__
 #define USE_EPOLL 1
 #include <sys/epoll.h>
+#ifdef NO_TIMERFD
+#define PIPE_WAKEUP NO_TIMERFD
+#else
+#define PIPE_WAKEUP 0
+#endif
+#if !PIPE_WAKEUP
+#include <sys/timerfd.h>
+#endif
 #else /* assume DARWIN */
 #define USE_EPOLL 0
+#define PIPE_WAKEUP 1
 #include <sys/event.h>
 #include <sys/types.h>
 #endif
@@ -107,7 +116,10 @@ async_t *make_async(void)
     async->immediate = make_list();
     async->timers = make_priority_queue(timer_cmp, timer_reloc);
     async->registrations = make_avl_tree(intptr_cmp);
-    async->wakeup_fd[0] = async->wakeup_fd[1] = -1;
+    async->wakeup_fd = -1;
+#if PIPE_WAKEUP
+    async->wakeup_trigger_fd = -1;
+#endif
     async->wounded_objects = make_list();
 #ifdef __MACH__
     host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &async->mach_clock);
@@ -144,10 +156,12 @@ FSTRACE_DECL(ASYNC_DESTROY, "UID=%64u");
 void destroy_async(async_t *async)
 {
     FSTRACE(ASYNC_DESTROY, async->uid);
-    if (async->wakeup_fd[0] >= 0) {
-        async_unregister(async, async->wakeup_fd[0]);
-        (void) close(async->wakeup_fd[0]);
-        (void) close(async->wakeup_fd[1]);
+    if (async->wakeup_fd >= 0) {
+        async_unregister(async, async->wakeup_fd);
+        (void) close(async->wakeup_fd);
+#if PIPE_WAKEUP
+        (void) close(async->wakeup_trigger_fd);
+#endif
     }
     async_timer_t *timer;
     while ((timer = earliest_timer(async)) != NULL)
@@ -190,13 +204,58 @@ uint64_t async_now(async_t *async)
     return async->recent;
 }
 
+#if !PIPE_WAKEUP
+static void set_wakeup_time(async_t *async, const struct itimerspec *target)
+{
+    if (timerfd_settime(async->wakeup_fd, TFD_TIMER_ABSTIME, target, NULL) < 0)
+        assert(false);
+}
+#endif
+
 FSTRACE_DECL(ASYNC_WAKE_UP, "UID=%64u");
 
 static void wake_up(async_t *async)
 {
     FSTRACE(ASYNC_WAKE_UP, async->uid);
-    if (async->wakeup_fd[1] >= 0 && write(async->wakeup_fd[1], wake_up, 1) < 0)
+#if PIPE_WAKEUP
+    if (async->wakeup_trigger_fd >= 0 &&
+        write(async->wakeup_trigger_fd, wake_up, 1) < 0)
         assert(errno == EAGAIN);
+#else
+    if (async->wakeup_fd >= 0) {
+        static const struct itimerspec immediate = {
+            .it_value = {
+                .tv_nsec = 1,   /* in the past but not zero */
+            },
+        };
+        set_wakeup_time(async, &immediate);
+    }
+#endif
+}
+
+static void cancel_wakeup(async_t *async)
+{
+#if !PIPE_WAKEUP
+    static const struct itimerspec never = { 0 };
+    set_wakeup_time(async, &never);
+#endif
+}
+
+static uint64_t schedule_wakeup(async_t *async, uint64_t expires)
+{
+#if PIPE_WAKEUP
+    return expires;
+#else
+    expires++;             /* timerfd takes 0 to mean "never"; sigh */
+    struct itimerspec target = {
+        .it_value = {
+            .tv_sec = expires / 1000000000,
+            .tv_nsec = expires % 1000000000,
+        },
+    };
+    set_wakeup_time(async, &target);
+    return (uint64_t) -1;
+#endif
 }
 
 enum {
@@ -450,31 +509,59 @@ static void emit_timer_backtrace(async_timer_t *timer)
     FSTRACE(ASYNC_TIMER_BT, timer->seqno, buf);
 }
 
+static void arm_wakeup(async_t *async)
+{
+    uint8_t buffer[1024];
+    while (read(async->wakeup_fd, buffer, sizeof buffer) > 0)
+        ;
+}
+
+#if PIPE_WAKEUP
+
 FSTRACE_DECL(ASYNC_SET_UP_WAKEUP_FD,
-             "UID=%64u WAKEUP-RDFD=%d WAKEUP-WRFD=%d");
+             "UID=%64u WAKEUP-FD=%d WAKEUP-TRIGGER-FD=%d");
 FSTRACE_DECL(ASYNC_SET_UP_WAKEUP_FD_FAIL, "UID=%64u ERRNO=%e");
 
 static bool set_up_wakeup_fd(async_t *async)
 {
-    if (async->wakeup_fd[0] >= 0)
+    if (async->wakeup_fd >= 0)
         return true;
-    if (!unixkit_pipe(async->wakeup_fd)) {
+    int fds[2];
+    if (!unixkit_pipe(fds)) {
         FSTRACE(ASYNC_SET_UP_WAKEUP_FD_FAIL, async->uid);
         return false;
     }
+    async->wakeup_fd = fds[0];
+    async->wakeup_trigger_fd = fds[1];
     FSTRACE(ASYNC_SET_UP_WAKEUP_FD, async->uid,
-            async->wakeup_fd[0], async->wakeup_fd[1]);
-    async_register(async, async->wakeup_fd[0], NULL_ACTION_1);
-    nonblock(async->wakeup_fd[1]);
+            async->wakeup_fd, async->wakeup_trigger_fd);
+    async_register(async, async->wakeup_fd, NULL_ACTION_1);
+    nonblock(async->wakeup_trigger_fd);
+    arm_wakeup(async);
     return true;
 }
 
-static void drain(int fd)
+#else /* PIPE_WAKEUP */
+
+FSTRACE_DECL(ASYNC_SET_UP_WAKEUP_FD,
+             "UID=%64u WAKEUP-FD=%d");
+FSTRACE_DECL(ASYNC_SET_UP_WAKEUP_FD_FAIL, "UID=%64u ERRNO=%e");
+
+static bool set_up_wakeup_fd(async_t *async)
 {
-    uint8_t buffer[1024];
-    while (read(fd, buffer, sizeof buffer) > 0)
-        ;
+    if (async->wakeup_fd >= 0)
+        return true;
+    async->wakeup_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+    if (async->wakeup_fd < 0) {
+        FSTRACE(ASYNC_SET_UP_WAKEUP_FD_FAIL, async->uid);
+        return false;
+    }
+    FSTRACE(ASYNC_SET_UP_WAKEUP_FD, async->uid, async->wakeup_fd);
+    async_register(async, async->wakeup_fd, NULL_ACTION_1);
+    return true;
 }
+
+#endif /* PIPE_WAKEUP */
 
 FSTRACE_DECL(ASYNC_POLL_NO_TIMERS, "UID=%64u");
 FSTRACE_DECL(ASYNC_POLL_TIMEOUT, "UID=%64u OBJ=%p ACT=%p");
@@ -487,9 +574,11 @@ int async_poll(async_t *async, uint64_t *pnext_timeout)
 {
     if (!set_up_wakeup_fd(async))
         return -1;
+    arm_wakeup(async);
     async_timer_t *timer = earliest_timer(async);
     if (timer == NULL) {
         *pnext_timeout = (uint64_t) -1;
+        cancel_wakeup(async);   /* not absolutely necessary */
         FSTRACE(ASYNC_POLL_NO_TIMERS, async->uid);
     } else {
         if (ns_remaining(async, timer) <= 0) {
@@ -500,11 +589,11 @@ int async_poll(async_t *async, uint64_t *pnext_timeout)
                 emit_timer_backtrace(timer);
             timer_cancel(async, timer);
             action_1_perf(action);
-            *pnext_timeout = 0;
+            *pnext_timeout = schedule_wakeup(async, 0);
             return 0;
         }
         FSTRACE(ASYNC_POLL_NEXT_TIMER, async->uid, timer->expires);
-        *pnext_timeout = timer->expires;
+        *pnext_timeout = schedule_wakeup(async, timer->expires);
     }
     int count;
 #if USE_EPOLL
@@ -535,10 +624,19 @@ int async_poll(async_t *async, uint64_t *pnext_timeout)
 #endif
     FSTRACE(ASYNC_POLL_CALL_BACK, async->uid, event->uid);
     async_event_trigger(event);
-    drain(async->wakeup_fd[0]);
-    *pnext_timeout = 0;
+    *pnext_timeout = schedule_wakeup(async, 0);
     return 0;
 }
+
+#if !PIPE_WAKEUP
+int async_poll_2(async_t *async)
+{
+    uint64_t next_timeout;
+    int status = async_poll(async, &next_timeout);
+    assert(status < 0 || next_timeout == (uint64_t) -1);
+    return status;
+}
+#endif
 
 FSTRACE_DECL(ASYNC_QUIT_LOOP, "UID=%64u");
 
@@ -551,7 +649,7 @@ void async_quit_loop(async_t *async)
 
 FSTRACE_DECL(ASYNC_FLUSH, "UID=%64u EXPIRES=%64u");
 FSTRACE_DECL(ASYNC_FLUSH_FAIL, "UID=%64u ERRNO=%e");
-FSTRACE_DECL(ASYNC_FLUSH_TIMERS_PENDING, "UID=%64u");
+FSTRACE_DECL(ASYNC_FLUSHED, "UID=%64u");
 FSTRACE_DECL(ASYNC_FLUSH_EXPIRED, "UID=%64u");
 
 int async_flush(async_t *async, uint64_t expires)
@@ -567,7 +665,8 @@ int async_flush(async_t *async, uint64_t expires)
         }
         now = async_now(async);
         if (next_timeout > now) {
-            FSTRACE(ASYNC_FLUSH_TIMERS_PENDING, async->uid);
+            /* Don't wait for timers*/
+            FSTRACE(ASYNC_FLUSHED, async->uid);
             return 0;
         }
     }
@@ -707,7 +806,7 @@ int async_loop_protected(async_t *async, void (*lock)(void *),
     if (!prepare_protected_loop(async))
         return -1;
     for (;;) {
-        drain(async->wakeup_fd[0]);
+        arm_wakeup(async);
         int64_t ns = take_immediate_action(async);
         if (async->quit) {
             FSTRACE(ASYNC_LOOP_PROTECTED_QUIT, async->uid);

@@ -6,11 +6,13 @@ DIRECTORIES = [
     'test',
     'components/async' ]
 
+NO_TIMERFD = 'NO_TIMERFD=' + ARGUMENTS.get('no-timerfd', "0")
+
 TARGET_DEFINES = {
     'freebsd_amd64': ['HAVE_EXECINFO'],
-    'linux32': ['_FILE_OFFSET_BITS=64', 'HAVE_EXECINFO'],
-    'linux64': ['HAVE_EXECINFO'],
-    'linux_arm64': ['HAVE_EXECINFO'],
+    'linux32': ['_FILE_OFFSET_BITS=64', 'HAVE_EXECINFO', NO_TIMERFD],
+    'linux64': ['HAVE_EXECINFO', NO_TIMERFD],
+    'linux_arm64': ['HAVE_EXECINFO', NO_TIMERFD],
     'openbsd_amd64': [],
     'darwin': ['HAVE_EXECINFO']
 }

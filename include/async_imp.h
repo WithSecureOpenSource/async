@@ -5,7 +5,10 @@ struct async {
     priorq_t *timers;
     avl_tree_t *registrations;
     volatile bool quit;
-    int wakeup_fd[2];
+    int wakeup_fd;
+#if PIPE_WAKEUP
+    int wakeup_trigger_fd;
+#endif
     list_t *wounded_objects;
     uint64_t recent;
 #ifdef __MACH__
