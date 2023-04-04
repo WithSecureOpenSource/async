@@ -246,11 +246,14 @@ static uint64_t schedule_wakeup(async_t *async, uint64_t expires)
 #if PIPE_WAKEUP
     return expires;
 #else
-    expires++;             /* timerfd takes 0 to mean "never"; sigh */
+    uint64_t expires_s = expires / 1000000000;
+    if (sizeof(time_t) < 5 && expires_s > INT32_MAX)
+        expires_s = INT32_MAX;
     struct itimerspec target = {
         .it_value = {
-            .tv_sec = expires / 1000000000,
-            .tv_nsec = expires % 1000000000,
+            .tv_sec = expires_s,
+            /* Make sure .it_value doesn't become 0 (= never). */
+            .tv_nsec = expires % 1000000000 | !expires_s,
         },
     };
     set_wakeup_time(async, &target);
