@@ -158,7 +158,6 @@ int async_fd(async_t *async);
  */
 int async_poll(async_t *async, uint64_t *pnext_timeout);
 
-#ifdef __linux__
 /*
  * If the async object is linked with an external main loop,
  * async_poll() must be called as soon as async_fd() becomes readable.
@@ -173,7 +172,6 @@ int async_poll(async_t *async, uint64_t *pnext_timeout);
  * support timerfd's. See async_poll().
  */
 int async_poll_2(async_t *async);
-#endif
 
 /*
  * This is the native main loop of the async library. The function never

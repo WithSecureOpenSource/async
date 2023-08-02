@@ -36,7 +36,7 @@ TARGET_LIBPATH = {
 }
 
 TARGET_LIBS = {
-    'freebsd_amd64': ['execinfo'],
+    'freebsd_amd64': ['execinfo', 'iconv'],
     'linux32': ['rt'],
     'linux64': ['rt'],
     'linux_arm64': ['rt'],
