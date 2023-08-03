@@ -1,3 +1,19 @@
+#pragma once
+
+#ifdef __linux__
+#ifdef NO_TIMERFD
+#define PIPE_WAKEUP NO_TIMERFD
+#else
+#define PIPE_WAKEUP 0
+#endif
+#endif
+
+#include <fsdyn/avltree.h>
+#include <fsdyn/list.h>
+#include <fsdyn/priority_queue.h>
+
+#include "async.h"
+
 struct async {
     uint64_t uid;
     int poll_fd;
@@ -43,3 +59,21 @@ struct async_event {
     action_1 action;
     void **stack_trace; /* Where the timer was scheduled or NULL */
 };
+
+int async_nonblock(int fd);
+
+/*
+ * Operating-system-dependent functions that implement async's timer
+ * wakeup mechanism. Note that the wakeup mechanism is not needed when
+ * async_loop() is used as it can manage with a calculated epoll or
+ * kqueue timeout. It is used with async_poll(), async_poll_2() or
+ * async_loop_protected(), which need to be prepared for external
+ * event loops as well as events from external sources.
+ */
+void async_initialize_wakeup(async_t *async);
+void async_cancel_wakeup(async_t *async);
+void async_dismantle_wakeup(async_t *async);
+void async_wake_up(async_t *async);
+uint64_t async_schedule_wakeup(async_t *async, uint64_t expires);
+void async_arm_wakeup(async_t *async);
+bool async_set_up_wakeup(async_t *async);

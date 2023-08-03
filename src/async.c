@@ -3,15 +3,7 @@
 #ifdef __linux__
 #define USE_EPOLL 1
 #include <sys/epoll.h>
-#ifdef NO_TIMERFD
-#define PIPE_WAKEUP NO_TIMERFD
-#else
-#define PIPE_WAKEUP 0
-#endif
-#if !PIPE_WAKEUP
-#include <sys/timerfd.h>
-#endif
-#else /* assume DARWIN */
+#else /* assume BSD */
 #define USE_EPOLL 0
 #include <sys/event.h>
 #include <sys/types.h>
@@ -20,28 +12,22 @@
 #include <mach/clock.h>
 #include <mach/mach.h>
 #endif
+#include <assert.h>
 #include <errno.h>
+#ifdef HAVE_EXECINFO
+#include <execinfo.h>
+#endif
 #include <fcntl.h>
 #include <stdbool.h>
 #include <sys/time.h>
 #include <time.h>
 
-#include <fsdyn/avltree.h>
 #include <fsdyn/fsalloc.h>
-#include <fsdyn/list.h>
-#include <fsdyn/priority_queue.h>
 #include <fstrace.h>
 #include <unixkit/unixkit.h>
-#ifdef HAVE_EXECINFO
-#include <execinfo.h>
-#endif
-#include <assert.h>
 
-#include "async.h"
 #include "async_imp.h"
 #include "async_version.h"
-
-static void cancel_wakeup(async_t *async);
 
 static int timer_cmp(const void *t1, const void *t2)
 {
@@ -80,7 +66,7 @@ static int cloexec(int fd)
     return fcntl(fd, F_SETFD, status | FD_CLOEXEC);
 }
 
-static int nonblock(int fd)
+int async_nonblock(int fd)
 {
     int status = fcntl(fd, F_GETFL, 0);
     if (status < 0)
@@ -117,14 +103,7 @@ async_t *make_async(void)
     async->immediate = make_list();
     async->timers = make_priority_queue(timer_cmp, timer_reloc);
     async->registrations = make_avl_tree(intptr_cmp);
-#ifndef __linux__
-    async->wakeup_needed = false;
-#else
-    async->wakeup_fd = -1;
-#if PIPE_WAKEUP
-    async->wakeup_trigger_fd = -1;
-#endif
-#endif
+    async_initialize_wakeup(async);
     async->wounded_objects = make_list();
 #ifdef __MACH__
     host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &async->mach_clock);
@@ -161,17 +140,7 @@ FSTRACE_DECL(ASYNC_DESTROY, "UID=%64u");
 void destroy_async(async_t *async)
 {
     FSTRACE(ASYNC_DESTROY, async->uid);
-#ifndef __linux__
-    cancel_wakeup(async);
-#else
-    if (async->wakeup_fd >= 0) {
-        async_unregister(async, async->wakeup_fd);
-        (void) close(async->wakeup_fd);
-#if PIPE_WAKEUP
-        (void) close(async->wakeup_trigger_fd);
-#endif
-    }
-#endif
+    async_dismantle_wakeup(async);
     async_timer_t *timer;
     while ((timer = earliest_timer(async)) != NULL)
         async_timer_cancel(async, timer);
@@ -213,88 +182,6 @@ uint64_t async_now(async_t *async)
     return async->recent;
 }
 
-#ifndef __linux__
-static void set_wakeup_time(async_t *async, int64_t delay)
-{
-    struct kevent event;
-    EV_SET(&event, 0, EVFILT_TIMER, EV_ADD | EV_ENABLE | EV_ONESHOT,
-           NOTE_NSECONDS, delay, NULL);
-    if (kevent(async->poll_fd, &event, 1, NULL, 0, NULL) < 0)
-        assert(false);
-}
-#elif !PIPE_WAKEUP
-static void set_wakeup_time(async_t *async, const struct itimerspec *target)
-{
-    if (timerfd_settime(async->wakeup_fd, TFD_TIMER_ABSTIME, target, NULL) < 0)
-        assert(false);
-}
-#endif
-
-FSTRACE_DECL(ASYNC_WAKE_UP, "UID=%64u");
-
-static void wake_up(async_t *async)
-{
-    FSTRACE(ASYNC_WAKE_UP, async->uid);
-#ifndef __linux__
-    if (async->wakeup_needed)
-        set_wakeup_time(async, 0);
-#elif PIPE_WAKEUP
-    if (async->wakeup_trigger_fd >= 0 &&
-        write(async->wakeup_trigger_fd, wake_up, 1) < 0)
-        assert(errno == EAGAIN);
-#else
-    if (async->wakeup_fd >= 0) {
-        static const struct itimerspec immediate = {
-            .it_value = {
-                .tv_nsec = 1,   /* in the past but not zero */
-            },
-        };
-        set_wakeup_time(async, &immediate);
-    }
-#endif
-}
-
-static void cancel_wakeup(async_t *async)
-{
-#ifndef __linux__
-    struct kevent event;
-    EV_SET(&event, 0, EVFILT_TIMER, EV_DELETE, 0, 0, NULL);
-    (void) kevent(async->poll_fd, &event, 1, NULL, 0, NULL);
-#elif !PIPE_WAKEUP
-    static const struct itimerspec never = { 0 };
-    set_wakeup_time(async, &never);
-#endif
-}
-
-static uint64_t schedule_wakeup(async_t *async, uint64_t expires)
-{
-#ifndef __linux__
-    uint64_t now = async_now(async);
-    if (expires <= now)
-        set_wakeup_time(async, 0);
-    else {
-        int64_t delay = expires - now;
-        set_wakeup_time(async, delay >= 0 ? delay : INT64_MAX);
-    }    
-    return (uint64_t) -1;
-#elif PIPE_WAKEUP
-    return expires;
-#else
-    uint64_t expires_s = expires / 1000000000;
-    if (sizeof(time_t) < 5 && expires_s > INT32_MAX)
-        expires_s = INT32_MAX;
-    struct itimerspec target = {
-        .it_value = {
-            .tv_sec = expires_s,
-            /* Make sure .it_value doesn't become 0 (= never). */
-            .tv_nsec = expires % 1000000000 | !expires_s,
-        },
-    };
-    set_wakeup_time(async, &target);
-    return (uint64_t) -1;
-#endif
-}
-
 enum {
     BT_DEPTH = 31,
 };
@@ -324,7 +211,7 @@ static async_timer_t *timer_start(async_t *async, uint64_t expires,
 {
     async_timer_t *timer = new_timer(async, false, expires, action);
     priorq_enqueue(async->timers, timer);
-    wake_up(async);
+    async_wake_up(async);
     return timer;
 }
 
@@ -479,7 +366,7 @@ static async_timer_t *execute(async_t *async, action_1 action)
 {
     async_timer_t *timer = new_timer(async, true, async->recent, action);
     timer->loc = list_append(async->immediate, timer);
-    wake_up(async);
+    async_wake_up(async);
     return timer;
 }
 
@@ -546,71 +433,6 @@ static void emit_timer_backtrace(async_timer_t *timer)
     FSTRACE(ASYNC_TIMER_BT, timer->seqno, buf);
 }
 
-static void arm_wakeup(async_t *async)
-{
-#ifdef __linux__
-    uint8_t buffer[1024];
-    while (read(async->wakeup_fd, buffer, sizeof buffer) > 0)
-        ;
-#endif
-}
-
-#ifndef __linux__
-FSTRACE_DECL(ASYNC_SET_UP_WAKEUP, "UID=%64u");
-
-static bool set_up_wakeup(async_t *async)
-{
-    FSTRACE(ASYNC_SET_UP_WAKEUP, async->uid);
-    async->wakeup_needed = true;
-    return true;
-}
-#elif PIPE_WAKEUP
-
-FSTRACE_DECL(ASYNC_SET_UP_WAKEUP,
-             "UID=%64u WAKEUP-FD=%d WAKEUP-TRIGGER-FD=%d");
-FSTRACE_DECL(ASYNC_SET_UP_WAKEUP_FAIL, "UID=%64u ERRNO=%e");
-
-static bool set_up_wakeup(async_t *async)
-{
-    if (async->wakeup_fd >= 0)
-        return true;
-    int fds[2];
-    if (!unixkit_pipe(fds)) {
-        FSTRACE(ASYNC_SET_UP_WAKEUP_FAIL, async->uid);
-        return false;
-    }
-    async->wakeup_fd = fds[0];
-    async->wakeup_trigger_fd = fds[1];
-    FSTRACE(ASYNC_SET_UP_WAKEUP, async->uid,
-            async->wakeup_fd, async->wakeup_trigger_fd);
-    async_register(async, async->wakeup_fd, NULL_ACTION_1);
-    nonblock(async->wakeup_trigger_fd);
-    arm_wakeup(async);
-    return true;
-}
-
-#else /* PIPE_WAKEUP */
-
-FSTRACE_DECL(ASYNC_SET_UP_WAKEUP,
-             "UID=%64u WAKEUP-FD=%d");
-FSTRACE_DECL(ASYNC_SET_UP_WAKEUP_FAIL, "UID=%64u ERRNO=%e");
-
-static bool set_up_wakeup(async_t *async)
-{
-    if (async->wakeup_fd >= 0)
-        return true;
-    async->wakeup_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
-    if (async->wakeup_fd < 0) {
-        FSTRACE(ASYNC_SET_UP_WAKEUP_FAIL, async->uid);
-        return false;
-    }
-    FSTRACE(ASYNC_SET_UP_WAKEUP, async->uid, async->wakeup_fd);
-    async_register(async, async->wakeup_fd, NULL_ACTION_1);
-    return true;
-}
-
-#endif /* PIPE_WAKEUP */
-
 FSTRACE_DECL(ASYNC_POLL_NO_TIMERS, "UID=%64u");
 FSTRACE_DECL(ASYNC_POLL_TIMEOUT, "UID=%64u OBJ=%p ACT=%p");
 FSTRACE_DECL(ASYNC_POLL_NEXT_TIMER, "UID=%64u EXPIRES=%64u");
@@ -620,13 +442,13 @@ FSTRACE_DECL(ASYNC_POLL_CALL_BACK, "UID=%64u EVENT=%64u");
 
 int async_poll(async_t *async, uint64_t *pnext_timeout)
 {
-    if (!set_up_wakeup(async))
+    if (!async_set_up_wakeup(async))
         return -1;
-    arm_wakeup(async);
+    async_arm_wakeup(async);
     async_timer_t *timer = earliest_timer(async);
     if (timer == NULL) {
         *pnext_timeout = (uint64_t) -1;
-        cancel_wakeup(async);   /* not absolutely necessary */
+        async_cancel_wakeup(async);   /* not absolutely necessary */
         FSTRACE(ASYNC_POLL_NO_TIMERS, async->uid);
     } else {
         if (ns_remaining(async, timer) <= 0) {
@@ -637,11 +459,11 @@ int async_poll(async_t *async, uint64_t *pnext_timeout)
                 emit_timer_backtrace(timer);
             timer_cancel(async, timer);
             action_1_perf(action);
-            *pnext_timeout = schedule_wakeup(async, 0);
+            *pnext_timeout = async_schedule_wakeup(async, 0);
             return 0;
         }
         FSTRACE(ASYNC_POLL_NEXT_TIMER, async->uid, timer->expires);
-        *pnext_timeout = schedule_wakeup(async, timer->expires);
+        *pnext_timeout = async_schedule_wakeup(async, timer->expires);
     }
     int count;
 #if USE_EPOLL
@@ -672,7 +494,7 @@ int async_poll(async_t *async, uint64_t *pnext_timeout)
 #endif
     FSTRACE(ASYNC_POLL_CALL_BACK, async->uid, event->uid);
     async_event_trigger(event);
-    *pnext_timeout = schedule_wakeup(async, 0);
+    *pnext_timeout = async_schedule_wakeup(async, 0);
     return 0;
 }
 
@@ -692,7 +514,7 @@ void async_quit_loop(async_t *async)
 {
     FSTRACE(ASYNC_QUIT_LOOP, async->uid);
     async->quit = true;
-    wake_up(async);
+    async_wake_up(async);
 }
 
 FSTRACE_DECL(ASYNC_FLUSH, "UID=%64u EXPIRES=%64u");
@@ -834,7 +656,7 @@ FSTRACE_DECL(ASYNC_LOOP_PROTECTED, "UID=%64u");
 static bool prepare_protected_loop(async_t *async)
 {
     FSTRACE(ASYNC_LOOP_PROTECTED, async->uid);
-    if (!set_up_wakeup(async))
+    if (!async_set_up_wakeup(async))
         return false;
     async->quit = false;
     return true;
@@ -854,7 +676,7 @@ int async_loop_protected(async_t *async, void (*lock)(void *),
     if (!prepare_protected_loop(async))
         return -1;
     for (;;) {
-        arm_wakeup(async);
+        async_arm_wakeup(async);
         int64_t ns = take_immediate_action(async);
         if (async->quit) {
             FSTRACE(ASYNC_LOOP_PROTECTED_QUIT, async->uid);
@@ -901,7 +723,7 @@ FSTRACE_DECL(ASYNC_REGISTER, "UID=%64u FD=%d OBJ=%p ACT=%p");
 
 int async_register(async_t *async, int fd, action_1 action)
 {
-    if (nonblock(fd) < 0) {
+    if (async_nonblock(fd) < 0) {
         FSTRACE(ASYNC_REGISTER_NONBLOCK_FAIL, async->uid, fd, action.obj,
                 action.act);
         return -1;
@@ -927,7 +749,7 @@ int async_register(async_t *async, int fd, action_1 action)
     }
 #endif
     (void) avl_tree_put(async->registrations, (void *) (intptr_t) fd, event);
-    wake_up(async);
+    async_wake_up(async);
     FSTRACE(ASYNC_REGISTER, async->uid, fd, action.obj, action.act);
     return 0;
 }
@@ -961,7 +783,7 @@ int async_register_old_school(async_t *async, int fd, action_1 action)
     }
 #endif
     (void) avl_tree_put(async->registrations, (void *) (intptr_t) fd, event);
-    wake_up(async);
+    async_wake_up(async);
     FSTRACE(ASYNC_REGISTER_OLD_SCHOOL, async->uid, fd, action.obj, action.act);
     return 0;
 }
@@ -1005,7 +827,7 @@ int async_modify_old_school(async_t *async, int fd, int readable, int writable)
     if (kevent(async->poll_fd, changes, 2, NULL, 0, NULL) < 0)
         return -1;
 #endif
-    wake_up(async);
+    async_wake_up(async);
     FSTRACE(ASYNC_MODIFY_OLD_SCHOOL, async->uid, fd, readable, writable);
     return 0;
 }
