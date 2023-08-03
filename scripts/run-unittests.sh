@@ -79,7 +79,11 @@ test-coverage () {
     echo &&
     find src -name \*.c |
     while read src; do
-        ${GCOV:-gcov} -p -o "stage/$arch/test/$(dirname "$src")" "$src" || exit
+        ${GCOV:-gcov} \
+            -p \
+            -o "stage/$arch/test/$(dirname "$src")" \
+            "$src" >stage/$arch/test/gcov/raw-gcov.out || exit
+        sed -n -e 1p -e \$p stage/$arch/test/gcov/raw-gcov.out
     done >stage/$arch/test/gcov/gcov.out 2>stage/$arch/test/gcov/gcov.err &&
     (
         pretty-print-out <stage/$arch/test/gcov/gcov.out &&
@@ -93,8 +97,6 @@ test-coverage () {
 pretty-print-out () {
     while read line1; do
         read line2
-        read line3
-        read line4
         f=$(sed "s/^File .\\([^']*\\)'$/\\1/" <<<"$line1")
         if [[ "$f" =~ \.h$ ]]; then
             continue

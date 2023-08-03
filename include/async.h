@@ -132,7 +132,7 @@ void async_wound(async_t *async, void *object);
  * Returns a single file descriptor that can be used to integrate this
  * library with some other event framework. Whenever the returned file
  * descriptor becomes readable, the external framework must call
- * async_poll().
+ * async_poll() or async_poll_2().
  */
 int async_fd(async_t *async);
 
@@ -152,8 +152,26 @@ int async_fd(async_t *async);
  * be called again without delay.
  *
  * The function never blocks.
+ *
+ * See async_poll_2() for a simpler interface that does not require
+ * observing pnext_timeout.
  */
 int async_poll(async_t *async, uint64_t *pnext_timeout);
+
+/*
+ * If the async object is linked with an external main loop,
+ * async_poll() must be called as soon as async_fd() becomes readable.
+ * It is ok to call async_poll() spuriously.
+ *
+ * Returns a negative number in case of an error (consult errno). Some
+ * errors may not be fatal.
+ * 
+ * The function never blocks.
+ *
+ * The function is not available on old Linux systems that don't
+ * support timerfd's. See async_poll().
+ */
+int async_poll_2(async_t *async);
 
 /*
  * This is the native main loop of the async library. The function never
@@ -167,6 +185,7 @@ int async_poll(async_t *async, uint64_t *pnext_timeout);
  *  - async_loop()
  *  - async_loop_protected()
  *  - async_poll()
+ *  - async_poll_2()
  *  - destroy_async()
  */
 int async_loop(async_t *async);
@@ -190,6 +209,7 @@ int async_loop(async_t *async);
  *  - async_loop()
  *  - async_loop_protected()
  *  - async_poll()
+ *  - async_poll_2()
  *  - destroy_async()
  */
 int async_loop_protected(async_t *async, void (*lock)(void *),
