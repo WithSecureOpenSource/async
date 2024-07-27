@@ -444,7 +444,6 @@ int async_poll(async_t *async, uint64_t *pnext_timeout)
 {
     if (!async_set_up_wakeup(async))
         return -1;
-    async_arm_wakeup(async);
     async_timer_t *timer = earliest_timer(async);
     if (timer == NULL) {
         *pnext_timeout = (uint64_t) -1;
@@ -492,6 +491,7 @@ int async_poll(async_t *async, uint64_t *pnext_timeout)
     }
     async_event_t *event = kq_event.udata;
 #endif
+    async_arm_wakeup(async);
     FSTRACE(ASYNC_POLL_CALL_BACK, async->uid, event->uid);
     async_event_trigger(event);
     *pnext_timeout = async_schedule_wakeup(async, 0);
@@ -676,7 +676,6 @@ int async_loop_protected(async_t *async, void (*lock)(void *),
     if (!prepare_protected_loop(async))
         return -1;
     for (;;) {
-        async_arm_wakeup(async);
         int64_t ns = take_immediate_action(async);
         if (async->quit) {
             FSTRACE(ASYNC_LOOP_PROTECTED_QUIT, async->uid);
@@ -701,6 +700,7 @@ int async_loop_protected(async_t *async, void (*lock)(void *),
             FSTRACE(ASYNC_LOOP_PROTECTED_FAIL, async->uid);
             return -1;
         }
+        async_arm_wakeup(async);
         int i;
         for (i = 0; i < count; i++) {
 #if USE_EPOLL
