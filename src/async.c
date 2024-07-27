@@ -450,6 +450,13 @@ static void emit_timer_backtrace(async_timer_t *timer)
     FSTRACE(ASYNC_TIMER_BT, timer->seqno, buf);
 }
 
+static void drain(int fd)
+{
+    uint8_t buffer[1024];
+    while (read(fd, buffer, sizeof buffer) > 0)
+        ;
+}
+
 FSTRACE_DECL(ASYNC_SET_UP_WAKEUP_FD,
              "UID=%64u WAKEUP-RDFD=%d WAKEUP-WRFD=%d");
 FSTRACE_DECL(ASYNC_SET_UP_WAKEUP_FD_FAIL, "UID=%64u ERRNO=%e");
@@ -466,14 +473,8 @@ static bool set_up_wakeup_fd(async_t *async)
             async->wakeup_fd[0], async->wakeup_fd[1]);
     async_register(async, async->wakeup_fd[0], NULL_ACTION_1);
     nonblock(async->wakeup_fd[1]);
+    drain(async->wakeup_fd[0]);
     return true;
-}
-
-static void drain(int fd)
-{
-    uint8_t buffer[1024];
-    while (read(fd, buffer, sizeof buffer) > 0)
-        ;
 }
 
 FSTRACE_DECL(ASYNC_POLL_NO_TIMERS, "UID=%64u");
@@ -533,9 +534,9 @@ int async_poll(async_t *async, uint64_t *pnext_timeout)
     }
     async_event_t *event = kq_event.udata;
 #endif
+    drain(async->wakeup_fd[0]);
     FSTRACE(ASYNC_POLL_CALL_BACK, async->uid, event->uid);
     async_event_trigger(event);
-    drain(async->wakeup_fd[0]);
     *pnext_timeout = 0;
     return 0;
 }
@@ -707,7 +708,6 @@ int async_loop_protected(async_t *async, void (*lock)(void *),
     if (!prepare_protected_loop(async))
         return -1;
     for (;;) {
-        drain(async->wakeup_fd[0]);
         int64_t ns = take_immediate_action(async);
         if (async->quit) {
             FSTRACE(ASYNC_LOOP_PROTECTED_QUIT, async->uid);
@@ -733,6 +733,7 @@ int async_loop_protected(async_t *async, void (*lock)(void *),
             FSTRACE(ASYNC_LOOP_PROTECTED_FAIL, async->uid);
             return -1;
         }
+        drain(async->wakeup_fd[0]);
         int i;
         for (i = 0; i < count; i++) {
 #if USE_EPOLL
