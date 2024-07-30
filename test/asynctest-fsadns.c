@@ -303,7 +303,7 @@ static void make_name_query(global_t *g, const char *address,
 static void kick_off(global_t *g)
 {
     make_query(g, "f-secure.com");
-    make_query(g, "www.f-secure.fi");
+    make_query(g, "www.withsecure.com");
     make_query(g, "google.com");
     make_query(g, "example.com");
     make_query(g, "none.f-secure.com");
