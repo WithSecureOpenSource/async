@@ -61,6 +61,10 @@ struct async_event {
 };
 
 int async_nonblock(int fd);
+int async_register_event(async_t *async, int fd, async_event_t *event);
+
+/* The wakeup mechanism registers a dummy event. */
+#define ASYNC_SENTINEL_EVENT ((async_event_t *) NULL)
 
 /*
  * Operating-system-dependent functions that implement async's timer
@@ -74,6 +78,6 @@ void async_initialize_wakeup(async_t *async);
 void async_cancel_wakeup(async_t *async);
 void async_dismantle_wakeup(async_t *async);
 void async_wake_up(async_t *async);
-uint64_t async_schedule_wakeup(async_t *async, uint64_t expires);
+void async_schedule_wakeup(async_t *async, uint64_t expires);
 void async_arm_wakeup(async_t *async);
 bool async_set_up_wakeup(async_t *async);

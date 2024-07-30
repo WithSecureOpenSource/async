@@ -47,11 +47,6 @@ void async_cancel_wakeup(async_t *async)
 {
 }
 
-uint64_t async_schedule_wakeup(async_t *async, uint64_t expires)
-{
-    return expires;
-}
-
 void async_arm_wakeup(async_t *async)
 {
     uint8_t buffer[1024];
@@ -76,7 +71,7 @@ bool async_set_up_wakeup(async_t *async)
     async->wakeup_trigger_fd = fds[1];
     FSTRACE(ASYNC_SET_UP_WAKEUP, async->uid,
             async->wakeup_fd, async->wakeup_trigger_fd);
-    async_register(async, async->wakeup_fd, NULL_ACTION_1);
+    async_register_event(async, async->wakeup_fd, ASYNC_SENTINEL_EVENT);
     async_nonblock(async->wakeup_trigger_fd);
     async_arm_wakeup(async);
     return true;

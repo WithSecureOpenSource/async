@@ -55,7 +55,7 @@ void async_cancel_wakeup(async_t *async)
     set_wakeup_time(async, &never);
 }
 
-uint64_t async_schedule_wakeup(async_t *async, uint64_t expires)
+void async_schedule_wakeup(async_t *async, uint64_t expires)
 {
     uint64_t expires_s = expires / 1000000000;
     if (sizeof(time_t) < 5 && expires_s > INT32_MAX)
@@ -68,7 +68,6 @@ uint64_t async_schedule_wakeup(async_t *async, uint64_t expires)
         },
     };
     set_wakeup_time(async, &target);
-    return (uint64_t) -1;
 }
 
 void async_arm_wakeup(async_t *async)
@@ -91,7 +90,7 @@ bool async_set_up_wakeup(async_t *async)
         return false;
     }
     FSTRACE(ASYNC_SET_UP_WAKEUP, async->uid, async->wakeup_fd);
-    async_register(async, async->wakeup_fd, NULL_ACTION_1);
+    async_register_event(async, async->wakeup_fd, ASYNC_SENTINEL_EVENT);
     return true;
 }
 

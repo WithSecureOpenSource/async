@@ -439,6 +439,7 @@ FSTRACE_DECL(ASYNC_POLL_NEXT_TIMER, "UID=%64u EXPIRES=%64u");
 FSTRACE_DECL(ASYNC_POLL_FAIL, "UID=%64u ERRNO=%e");
 FSTRACE_DECL(ASYNC_POLL_SPURIOUS, "UID=%64u");
 FSTRACE_DECL(ASYNC_POLL_CALL_BACK, "UID=%64u EVENT=%64u");
+FSTRACE_DECL(ASYNC_POLL_SKIP_SENTINEL, "UID=%64u");
 
 int async_poll(async_t *async, uint64_t *pnext_timeout)
 {
@@ -458,44 +459,49 @@ int async_poll(async_t *async, uint64_t *pnext_timeout)
                 emit_timer_backtrace(timer);
             timer_cancel(async, timer);
             action_1_perf(action);
-            *pnext_timeout = async_schedule_wakeup(async, 0);
+            *pnext_timeout = 0;
             return 0;
         }
         FSTRACE(ASYNC_POLL_NEXT_TIMER, async->uid, timer->expires);
-        *pnext_timeout = async_schedule_wakeup(async, timer->expires);
+        *pnext_timeout = timer->expires;
     }
-    int count;
+    for (;;) {
+        int count;
 #if USE_EPOLL
-    struct epoll_event epoll_event;
-    count = epoll_wait(async->poll_fd, &epoll_event, 1, 0);
-    if (count < 0) {
-        FSTRACE(ASYNC_POLL_FAIL, async->uid);
-        return count;
-    }
-    if (count == 0) {
-        FSTRACE(ASYNC_POLL_SPURIOUS, async->uid);
-        return 0;
-    }
-    async_event_t *event = epoll_event.data.ptr;
+        struct epoll_event epoll_event;
+        count = epoll_wait(async->poll_fd, &epoll_event, 1, 0);
+        if (count < 0) {
+            FSTRACE(ASYNC_POLL_FAIL, async->uid);
+            return count;
+        }
+        if (count == 0) {
+            FSTRACE(ASYNC_POLL_SPURIOUS, async->uid);
+            return 0;
+        }
+        async_event_t *event = epoll_event.data.ptr;
 #else
-    struct kevent kq_event;
-    struct timespec immediate = { 0, 0 };
-    count = kevent(async->poll_fd, NULL, 0, &kq_event, 1, &immediate);
-    if (count < 0) {
-        FSTRACE(ASYNC_POLL_FAIL, async->uid);
-        return count;
-    }
-    if (count == 0) {
-        FSTRACE(ASYNC_POLL_SPURIOUS, async->uid);
-        return 0;
-    }
-    async_event_t *event = kq_event.udata;
+        struct kevent kq_event;
+        struct timespec immediate = { 0, 0 };
+        count = kevent(async->poll_fd, NULL, 0, &kq_event, 1, &immediate);
+        if (count < 0) {
+            FSTRACE(ASYNC_POLL_FAIL, async->uid);
+            return count;
+        }
+        if (count == 0) {
+            FSTRACE(ASYNC_POLL_SPURIOUS, async->uid);
+            return 0;
+        }
+        async_event_t *event = kq_event.udata;
 #endif
-    async_arm_wakeup(async);
-    FSTRACE(ASYNC_POLL_CALL_BACK, async->uid, event->uid);
-    async_event_trigger(event);
-    *pnext_timeout = async_schedule_wakeup(async, 0);
-    return 0;
+        async_arm_wakeup(async);
+        if (event != ASYNC_SENTINEL_EVENT) {
+            FSTRACE(ASYNC_POLL_CALL_BACK, async->uid, event->uid);
+            async_event_trigger(event);
+            *pnext_timeout = 0;
+            return 0;
+        }
+        FSTRACE(ASYNC_POLL_SKIP_SENTINEL, async->uid);
+    }
 }
 
 #if !PIPE_WAKEUP
@@ -503,7 +509,8 @@ int async_poll_2(async_t *async)
 {
     uint64_t next_timeout;
     int status = async_poll(async, &next_timeout);
-    assert(status < 0 || next_timeout == (uint64_t) -1);
+    if (status >= 0 && next_timeout != (uint64_t) -1)
+        async_schedule_wakeup(async, next_timeout);
     return status;
 }
 #endif
@@ -645,8 +652,10 @@ int async_loop(async_t *async)
 #else
             async_event_t *event = kq_events[i].udata;
 #endif
-            async_event_trigger(event);
-            FSTRACE(ASYNC_LOOP_EXECUTE, async->uid, event->uid);
+            if (event != ASYNC_SENTINEL_EVENT) {
+                async_event_trigger(event);
+                FSTRACE(ASYNC_LOOP_EXECUTE, async->uid, event->uid);
+            }
         }
     }
 }
@@ -708,7 +717,7 @@ int async_loop_protected(async_t *async, void (*lock)(void *),
 #else
             async_event_t *event = kq_events[i].udata;
 #endif
-            if (event) {        /* the timer "event" is NULL */
+            if (event != ASYNC_SENTINEL_EVENT) {
                 async_event_trigger(event);
                 FSTRACE(ASYNC_LOOP_PROTECTED_EXECUTE, async->uid, event->uid);
             }
@@ -716,25 +725,20 @@ int async_loop_protected(async_t *async, void (*lock)(void *),
     }
 }
 
-FSTRACE_DECL(ASYNC_REGISTER_NONBLOCK_FAIL,
-             "UID=%64u FD=%d OBJ=%p ACT=%p ERRNO=%e");
-FSTRACE_DECL(ASYNC_REGISTER_FAIL, "UID=%64u FD=%d OBJ=%p ACT=%p ERRNO=%e");
-FSTRACE_DECL(ASYNC_REGISTER, "UID=%64u FD=%d OBJ=%p ACT=%p");
+FSTRACE_DECL(ASYNC_REGISTER_NONBLOCK_FAIL, "UID=%64u FD=%d EVENT=%p ERRNO=%e");
+FSTRACE_DECL(ASYNC_REGISTER_FAIL, "UID=%64u FD=%d EVENT=%p ERRNO=%e");
+FSTRACE_DECL(ASYNC_REGISTER, "UID=%64u FD=%d EVENT=%p");
 
-int async_register(async_t *async, int fd, action_1 action)
+int async_register_event(async_t *async, int fd, async_event_t *event)
 {
-    if (async_nonblock(fd) < 0) {
-        FSTRACE(ASYNC_REGISTER_NONBLOCK_FAIL, async->uid, fd, action.obj,
-                action.act);
+    if (async_nonblock(fd) < 0)
         return -1;
-    }
-    async_event_t *event = make_async_event(async, action);
 #if USE_EPOLL
     struct epoll_event epoll_event;
     epoll_event.events = EPOLLIN | EPOLLOUT | EPOLLET;
     epoll_event.data.ptr = event;
     if (epoll_ctl(async->poll_fd, EPOLL_CTL_ADD, fd, &epoll_event) < 0) {
-        FSTRACE(ASYNC_REGISTER_FAIL, async->uid, fd, action.obj, action.act);
+        FSTRACE(ASYNC_REGISTER_FAIL, async->uid, fd, event);
         destroy_async_event(event);
         return -1;
     }
@@ -743,14 +747,26 @@ int async_register(async_t *async, int fd, action_1 action)
     EV_SET(&changes[0], fd, EVFILT_READ, EV_ADD | EV_CLEAR, 0, 0, event);
     EV_SET(&changes[1], fd, EVFILT_WRITE, EV_ADD | EV_CLEAR, 0, 0, event);
     if (kevent(async->poll_fd, changes, 2, NULL, 0, NULL) < 0) {
-        FSTRACE(ASYNC_REGISTER_FAIL, async->uid, fd, action.obj, action.act);
+        FSTRACE(ASYNC_REGISTER_FAIL, async->uid, fd, event);
         destroy_async_event(event);
         return -1;
     }
 #endif
     (void) avl_tree_put(async->registrations, (void *) (intptr_t) fd, event);
     async_wake_up(async);
-    FSTRACE(ASYNC_REGISTER, async->uid, fd, action.obj, action.act);
+    FSTRACE(ASYNC_REGISTER, async->uid, fd, event);
+    return 0;
+}
+
+int async_register(async_t *async, int fd, action_1 action)
+{
+    async_event_t *event = make_async_event(async, action);
+    if (async_register_event(async, fd, event) < 0) {
+        FSTRACE(ASYNC_REGISTER_NONBLOCK_FAIL, async->uid, fd, action.obj,
+                action.act);
+        destroy_async_event(event);
+        return -1;
+    }
     return 0;
 }
 
@@ -854,7 +870,9 @@ int async_unregister(async_t *async, int fd)
     avl_elem_t *element =
         avl_tree_pop(async->registrations, (void *) (intptr_t) fd);
     assert(element != NULL);
-    destroy_async_event((async_event_t *) avl_elem_get_value(element));
+    async_event_t *event = (async_event_t *) avl_elem_get_value(element);
+    if (event != ASYNC_SENTINEL_EVENT)
+        destroy_async_event(event);
     destroy_avl_element(element);
     FSTRACE(ASYNC_UNREGISTER, async->uid, fd);
     return 0;

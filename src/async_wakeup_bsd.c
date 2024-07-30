@@ -50,7 +50,7 @@ void async_wake_up(async_t *async)
         set_wakeup_time(async, 0);
 }
 
-uint64_t async_schedule_wakeup(async_t *async, uint64_t expires)
+void async_schedule_wakeup(async_t *async, uint64_t expires)
 {
     uint64_t now = async_now(async);
     if (expires <= now)
@@ -59,7 +59,6 @@ uint64_t async_schedule_wakeup(async_t *async, uint64_t expires)
         int64_t delay = expires - now;
         set_wakeup_time(async, delay >= 0 ? delay : INT64_MAX);
     }    
-    return (uint64_t) -1;
 }
 
 void async_arm_wakeup(async_t *async)
