@@ -121,3 +121,12 @@ json_thing_t *json_conn_receive(json_conn_t *conn)
     FSTRACE(ASYNC_JSON_CONN_RECEIVE, conn->uid);
     return jsonyield_receive(conn->input_stream);
 }
+
+FSTRACE_DECL(ASYNC_JSON_CONN_RECEIVE_FD, "UID=%64u");
+
+int json_conn_receive_fd(json_conn_t *conn)
+{
+    FSTRACE(ASYNC_JSON_CONN_RECEIVE_FD, conn->uid);
+    return tcp_recv_fd(conn->tcp_conn);
+}
+
