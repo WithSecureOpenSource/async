@@ -22,6 +22,7 @@ void json_conn_unregister_callback(json_conn_t *conn);
 void json_conn_send(json_conn_t *conn, json_thing_t *thing);
 int json_conn_send_fd(json_conn_t *conn, int fd, bool close_after_sending);
 json_thing_t *json_conn_receive(json_conn_t *conn);
+int json_conn_receive_fd(json_conn_t *conn);
 
 #ifdef __cplusplus
 }
