@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -153,8 +154,10 @@ static ssize_t do_read(queuestream_t *qstr, void *buf, size_t count)
         qstr->pending_errno = 0;
         return -1;
     }
-    if ((ssize_t) count < 0)
-        count = (size_t) -1 >> 1;
+    if (count == 0)
+        return 0;
+    if (count > SSIZE_MAX)
+        count = SSIZE_MAX;
     size_t cursor = 0;
     while (cursor < count && !list_empty(qstr->queue)) {
         list_elem_t *head_elem = list_get_first(qstr->queue);
