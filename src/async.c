@@ -725,7 +725,6 @@ int async_loop_protected(async_t *async, void (*lock)(void *),
     }
 }
 
-FSTRACE_DECL(ASYNC_REGISTER_NONBLOCK_FAIL, "UID=%64u FD=%d EVENT=%p ERRNO=%e");
 FSTRACE_DECL(ASYNC_REGISTER_FAIL, "UID=%64u FD=%d EVENT=%p ERRNO=%e");
 FSTRACE_DECL(ASYNC_REGISTER, "UID=%64u FD=%d EVENT=%p");
 
@@ -758,12 +757,13 @@ int async_register_event(async_t *async, int fd, async_event_t *event)
     return 0;
 }
 
+FSTRACE_DECL(ASYNC_REGISTER_NONBLOCK_FAIL, "UID=%64u FD=%d OBJ=%p ACT=%p ERRNO=%e");
+
 int async_register(async_t *async, int fd, action_1 action)
 {
     async_event_t *event = make_async_event(async, action);
     if (async_register_event(async, fd, event) < 0) {
-        FSTRACE(ASYNC_REGISTER_NONBLOCK_FAIL, async->uid, fd, action.obj,
-                action.act);
+        FSTRACE(ASYNC_REGISTER_NONBLOCK_FAIL, async->uid, fd, action.obj, action.act);
         destroy_async_event(event);
         return -1;
     }
