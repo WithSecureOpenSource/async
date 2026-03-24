@@ -86,7 +86,7 @@ static json_thing_t *construct_addrinfo(const struct addrinfo *ap)
     json_thing_t *info = json_make_object();
     json_add_to_object(info, "flags", json_make_integer(ap->ai_flags));
     json_add_to_object(info, "family", json_make_integer(ap->ai_family));
-    json_add_to_object(info, "socketype", json_make_integer(ap->ai_socktype));
+    json_add_to_object(info, "socktype", json_make_integer(ap->ai_socktype));
     json_add_to_object(info, "protocol", json_make_integer(ap->ai_protocol));
     if (ap->ai_addr) {
         char *base64_encoded =
