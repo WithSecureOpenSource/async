@@ -874,7 +874,7 @@ tcp_conn_t *tcp_connect(async_t *async, const struct sockaddr *from,
         return NULL;
     }
     if (fcntl(connfd, F_SETFL, status | O_NONBLOCK) < 0) {
-        FSTRACE(ASYNC_TCP_CONNECT_GETFL_FAIL, uid);
+        FSTRACE(ASYNC_TCP_CONNECT_SETFL_FAIL, uid);
         int err = errno;
         close(connfd);
         errno = err;
