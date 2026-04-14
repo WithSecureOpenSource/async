@@ -1185,8 +1185,6 @@ static tcp_conn_t *adopt_connection(async_t *async, uint64_t uid, int connfd)
     conn->outcursor = conn->outcount = 0;
     conn->connection_closed = conn->input_stream_closed = false;
     conn->input.error = conn->output.error = 0;
-    conn->input.ancillary_list = make_list();
-    conn->output.ancillary_list = make_list();
     tcp_unregister_callback(conn);
     conn->fd = connfd;
 #ifdef SO_NOSIGPIPE
@@ -1205,6 +1203,8 @@ static tcp_conn_t *adopt_connection(async_t *async, uint64_t uid, int connfd)
 #else
     conn->flush_socket = no_flush_socket;
 #endif
+    conn->input.ancillary_list = make_list();
+    conn->output.ancillary_list = make_list();
     action_1 socket_probe_cb = { conn, (act_1) socket_probe };
     async_register(async, conn->fd, socket_probe_cb);
     conn->input.state = conn->output.state = CONNECTING;
