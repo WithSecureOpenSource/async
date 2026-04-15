@@ -41,13 +41,6 @@ void tcp_client_close(tcp_client_t *client);
  * the user. */
 tcp_conn_t *tcp_client_establish(tcp_client_t *client);
 
-/* Like tcp_set_output_stream (qv). To avoid race conditions, you should
- * set the output stream right after calling open_tcp_client(). It is
- * possible that the output stream's read or close method gets called
- * before the registered callback. If that should happen,
- * tcp_client_establish() *will* return a non-NULL TCP connection. */
-void tcp_client_set_output_stream(tcp_client_t *client, bytestream_1 stream);
-
 void tcp_client_register_callback(tcp_client_t *client, action_1 action);
 void tcp_client_unregister_callback(tcp_client_t *client);
 
