@@ -738,7 +738,9 @@ int async_register_event(async_t *async, int fd, async_event_t *event)
     epoll_event.data.ptr = event;
     if (epoll_ctl(async->poll_fd, EPOLL_CTL_ADD, fd, &epoll_event) < 0) {
         FSTRACE(ASYNC_REGISTER_FAIL, async->uid, fd, event);
-        destroy_async_event(event);
+        if (event != ASYNC_SENTINEL_EVENT) {
+            destroy_async_event(event);
+        }
         return -1;
     }
 #else
@@ -747,7 +749,9 @@ int async_register_event(async_t *async, int fd, async_event_t *event)
     EV_SET(&changes[1], fd, EVFILT_WRITE, EV_ADD | EV_CLEAR, 0, 0, event);
     if (kevent(async->poll_fd, changes, 2, NULL, 0, NULL) < 0) {
         FSTRACE(ASYNC_REGISTER_FAIL, async->uid, fd, event);
-        destroy_async_event(event);
+        if (event != ASYNC_SENTINEL_EVENT) {
+            destroy_async_event(event);
+        }
         return -1;
     }
 #endif
