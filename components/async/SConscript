@@ -20,6 +20,7 @@ include = env.Install(
         '#include/clobberstream.h',
         '#include/concatstream.h',
         '#include/drystream.h',
+        '#include/dryyield.h',
         '#include/emptystream.h',
         '#include/errorstream.h',
         '#include/farewellstream.h',

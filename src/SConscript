@@ -35,6 +35,7 @@ env.StaticLibrary(
         'concatstream.c',
         'deserializer.c',
         'drystream.c',
+        'dryyield.c',
         'emptystream.c',
         'errorstream.c',
         'farewellstream.c',
