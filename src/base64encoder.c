@@ -23,7 +23,7 @@ struct base64encoder {
     unsigned bits;
 };
 
-static char BASE64MAP[62] =
+static char BASE64MAP[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
 FSTRACE_DECL(ASYNC_BASE64ENCODER_CREATE, "UID=%64u PTR=%p ASYNC=%p STREAM=%p");
